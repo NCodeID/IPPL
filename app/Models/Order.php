@@ -1,0 +1,66 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+
+class Order extends Model
+{
+    use HasUuids;
+
+    /**
+     * Attributes that are mass assignable.
+     *
+     * @var list<string>
+     */
+    protected $fillable = [
+        'order_number',
+        'user_id',
+        'order_type',
+        'source',
+        'status',
+        'payment_status',
+        'note',
+        'subtotal',
+        'discount',
+        'tax',
+        'total',
+        'completed_at',
+    ];
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'subtotal' => 'decimal:2',
+            'discount' => 'decimal:2',
+            'tax' => 'decimal:2',
+            'total' => 'decimal:2',
+            'completed_at' => 'datetime',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+        ];
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function orderItems(): HasMany
+    {
+        return $this->hasMany(OrderItem::class);
+    }
+
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
+    }
+}
