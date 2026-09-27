@@ -22,7 +22,9 @@ class Product extends Model
         'name',
         'description',
         'price',
+        'stock',
         'image_url',
+        'is_sellable',
         'is_available',
         'is_active',
     ];

@@ -19,10 +19,13 @@ class Payment extends Model
     protected $fillable = [
         'order_id',
         'payment_method_id',
+        'cashier_id',
         'amount',
         'tendered_amount',
         'change_amount',
         'status',
+        'snap_token',
+        'payment_reference',
         'paid_at',
     ];
 
@@ -51,5 +54,10 @@ class Payment extends Model
     public function paymentMethod(): BelongsTo
     {
         return $this->belongsTo(PaymentMethod::class);
+    }
+
+    public function cashier(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
     }
 }

@@ -15,10 +15,13 @@ return new class extends Migration
             $table->uuid('id')->primary();
             $table->foreignUuid('order_id')->constrained()->cascadeOnDelete();
             $table->foreignUuid('payment_method_id')->constrained();
+            $table->foreignUuid('cashier_id')->nullable()->constrained('users');
             $table->decimal('amount', 10, 2);
             $table->decimal('tendered_amount', 10, 2);
             $table->decimal('change_amount', 10, 2);
             $table->string('status');
+            $table->string('snap_token')->nullable();
+            $table->string('payment_reference')->nullable();
             $table->timestamp('paid_at')->nullable();
             $table->timestamps();
         });

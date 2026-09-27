@@ -17,7 +17,9 @@ return new class extends Migration
             $table->string('name');
             $table->text('description');
             $table->decimal('price', 10, 2);
+            $table->decimal('stock', 10, 2)->default(0);
             $table->string('image_url')->nullable();
+            $table->boolean('is_sellable')->default(true);
             $table->boolean('is_available')->default(true);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
