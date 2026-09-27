@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Order;
+use App\Models\Table;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -25,9 +26,11 @@ class OrderFactory extends Factory
 
         return [
             'order_number' => fake()->unique()->bothify('ORD-######'),
-            'user_id' => User::inRandomOrder()->value('id'),
+            'runner_id' => User::inRandomOrder()->value('id'),
+            'chef_id' => fake()->boolean(70) ? User::inRandomOrder()->value('id') : null,
+            'table_id' => Table::inRandomOrder()->value('id'),
+            'customer_name' => fake()->boolean(60) ? fake()->name() : null,
             'order_type' => fake()->randomElement(['dine_in', 'takeaway', 'delivery']),
-            'source' => fake()->randomElement(['pos', 'online', 'mobile']),
             'status' => $status,
             'payment_status' => fake()->randomElement(['paid', 'unpaid', 'partial']),
             'note' => fake()->boolean(30) ? fake()->sentence() : null,

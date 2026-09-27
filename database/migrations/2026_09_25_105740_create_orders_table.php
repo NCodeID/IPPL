@@ -14,9 +14,11 @@ return new class extends Migration
         Schema::create('orders', function (Blueprint $table) {
             $table->uuid('id')->primary();
             $table->string('order_number')->unique();
-            $table->foreignUuid('user_id')->constrained();
+            $table->foreignUuid('runner_id')->constrained('users');
+            $table->foreignUuid('chef_id')->nullable()->constrained('users');
+            $table->foreignUuid('table_id')->nullable()->constrained('tables');
+            $table->string('customer_name')->nullable();
             $table->string('order_type');
-            $table->string('source');
             $table->string('status');
             $table->string('payment_status');
             $table->string('note')->nullable();

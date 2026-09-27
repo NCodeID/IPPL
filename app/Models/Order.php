@@ -19,9 +19,11 @@ class Order extends Model
      */
     protected $fillable = [
         'order_number',
-        'user_id',
+        'runner_id',
+        'chef_id',
+        'table_id',
+        'customer_name',
         'order_type',
-        'source',
         'status',
         'payment_status',
         'note',
@@ -50,9 +52,19 @@ class Order extends Model
         ];
     }
 
-    public function user(): BelongsTo
+    public function runner(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function chef(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function table(): BelongsTo
+    {
+        return $this->belongsTo(Table::class);
     }
 
     public function orderItems(): HasMany

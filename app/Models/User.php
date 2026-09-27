@@ -13,7 +13,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, HasApiTokens, HasUuids, Notifiable;
+    use HasApiTokens, HasFactory, HasUuids, Notifiable;
 
     /**
      * Attributes that are mass assignable.
@@ -53,8 +53,13 @@ class User extends Authenticatable
         ];
     }
 
-    public function orders(): HasMany
+    public function runnerOrders(): HasMany
     {
-        return $this->hasMany(Order::class);
+        return $this->hasMany(Order::class, 'runner_id');
+    }
+
+    public function chefOrders(): HasMany
+    {
+        return $this->hasMany(Order::class, 'chef_id');
     }
 }
