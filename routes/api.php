@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\TableController;
 use Illuminate\Http\Request;
@@ -16,6 +17,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/orders', [OrderController::class, 'index']);
     Route::post('/orders', [OrderController::class, 'store']);
     Route::patch('/orders/{order}/status', [OrderController::class, 'updateStatus']);
+    Route::post('/orders/{order}/payments', [PaymentController::class, 'store']);
 });
 
 Route::post('/login', [AuthController::class, 'login'])
