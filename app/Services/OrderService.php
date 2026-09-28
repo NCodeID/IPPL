@@ -81,4 +81,17 @@ class OrderService
             return $order->load(['orderItems', 'table']);
         });
     }
+
+    public function updateStatus(Order $order, string $newStatus, string $actorId): Order
+    {
+        $order->status = $newStatus;
+
+        if ($newStatus === 'cooking' || $newStatus === 'ready') {
+            $order->chef_id = $actorId;
+        }
+
+        $order->save();
+
+        return $order;
+    }
 }
