@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\User;
@@ -11,7 +12,7 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'email'    => 'required|email',
+            'email' => 'required|email',
             'password' => 'required|string',
         ]);
 
@@ -28,17 +29,17 @@ class AuthController extends Controller
         $token = $user->createToken('pos_token', [$user->role])->plainTextToken;
 
         return response()->json([
-            'status'  => 'success',
+            'status' => 'success',
             'message' => 'Login berhasil',
-            'data'    => [
+            'data' => [
                 'access_token' => $token,
-                'token_type'   => 'Bearer',
-                'role'         => $user->role,
-                'user'         => [
-                    'name'  => $user->name,
+                'token_type' => 'Bearer',
+                'role' => $user->role,
+                'user' => [
+                    'name' => $user->name,
                     'email' => $user->email,
-                ]
-            ]
+                ],
+            ],
         ], 200);
     }
 
@@ -48,8 +49,8 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
 
         return response()->json([
-            'status'  => 'success',
-            'message' => 'Logout berhasil'
+            'status' => 'success',
+            'message' => 'Logout berhasil',
         ], 200);
     }
 }

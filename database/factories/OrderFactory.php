@@ -30,7 +30,7 @@ class OrderFactory extends Factory
             'chef_id' => fake()->boolean(70) ? User::inRandomOrder()->value('id') : null,
             'table_id' => Table::inRandomOrder()->value('id'),
             'customer_name' => fake()->boolean(60) ? fake()->name() : null,
-            'order_type' => fake()->randomElement(['dine_in', 'takeaway', 'delivery']),
+            'order_type' => fake()->randomElement(['dine_in', 'takeaway']),
             'status' => $status,
             'payment_status' => fake()->randomElement(['paid', 'unpaid', 'partial']),
             'note' => fake()->boolean(30) ? fake()->sentence() : null,

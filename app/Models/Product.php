@@ -38,6 +38,8 @@ class Product extends Model
     {
         return [
             'price' => 'decimal:2',
+            'stock' => 'decimal:2',
+            'is_sellable' => 'boolean',
             'is_available' => 'boolean',
             'is_active' => 'boolean',
             'created_at' => 'datetime',
