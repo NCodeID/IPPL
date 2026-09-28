@@ -9,7 +9,6 @@ use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Midtrans\Config;
-use Midtrans\Notification;
 use Midtrans\Snap;
 
 class PaymentService
@@ -113,10 +112,8 @@ class PaymentService
     public function handleMidtransNotification(array $payload): bool
     {
         return DB::transaction(function () use ($payload): bool {
-            $notification = new Notification($payload);
-
-            $transactionStatus = $notification->transaction_status;
-            $orderNumber = $notification->order_id;
+            $transactionStatus = $payload['transaction_status'];
+            $orderNumber = $payload['order_id'];
 
             $order = Order::where('order_number', $orderNumber)->lockForUpdate()->first();
 

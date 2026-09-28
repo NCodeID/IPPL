@@ -19,7 +19,7 @@ class MidtransWebhookController extends Controller
         } catch (Exception $e) {
             Log::error($e->getMessage());
 
-            return response()->json(['message' => 'error'], 500);
+            return response()->json(['message' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()], 500);
         }
     }
 }
