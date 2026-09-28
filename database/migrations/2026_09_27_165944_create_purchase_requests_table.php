@@ -9,12 +9,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('purchase_requests', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+            $table->id();
             $table->string('request_number')->unique();
-            $table->foreignUuid('warehouse_user_id')->constrained('users');
-            $table->foreignUuid('accountant_id')->nullable()->constrained('users');
+            $table->foreignId('warehouse_user_id')->constrained('users');
+            $table->foreignId('accountant_id')->nullable()->constrained('users');
             $table->string('status')->default('pending');
-            $table->decimal('total_estimated_cost', 15, 2)->default(0);
+            $table->bigInteger('total_estimated_cost')->default(0);
             $table->timestamps();
         });
     }

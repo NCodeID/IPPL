@@ -42,8 +42,8 @@ class OrderService
 
             foreach ($data['items'] as $item) {
                 $product = Product::with('recipes.ingredient')->findOrFail($item['product_id']);
-                $lineSubtotal = round((float) $product->price * $item['quantity'], 2);
-                $subtotal = round($subtotal + $lineSubtotal, 2);
+                $lineSubtotal = (int) round($product->price * $item['quantity']);
+                $subtotal = $subtotal + $lineSubtotal;
 
                 OrderItem::create([
                     'order_id' => $order->id,
@@ -67,9 +67,9 @@ class OrderService
                 }
             }
 
-            $tax = round($subtotal * 0.11, 2);
+            $tax = (int) round($subtotal * 0.11);
             $discount = 0;
-            $total = round($subtotal - $discount + $tax, 2);
+            $total = (int) round($subtotal - $discount + $tax);
 
             $order->update([
                 'subtotal' => $subtotal,

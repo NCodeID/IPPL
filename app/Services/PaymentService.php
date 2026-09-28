@@ -53,18 +53,21 @@ class PaymentService
 
     private function processCashPayment(Order $order, array $data, string $cashierId): Payment
     {
-        if ($data['tendered_amount'] < $order->total) {
+        $total = (int) round((float) $order->total);
+        $tendered = (int) round((float) $data['tendered_amount']);
+
+        if ($tendered < $total) {
             throw new Exception('The tendered amount is less than the order total.');
         }
 
-        $changeAmount = round((float) $data['tendered_amount'] - (float) $order->total, 2);
+        $changeAmount = $tendered - $total;
 
         $payment = Payment::create([
             'order_id' => $order->id,
             'payment_method_id' => $data['payment_method_id'],
             'cashier_id' => $cashierId,
-            'amount' => $order->total,
-            'tendered_amount' => $data['tendered_amount'],
+            'amount' => $total,
+            'tendered_amount' => $tendered,
             'change_amount' => $changeAmount,
             'status' => 'success',
         ]);
@@ -82,10 +85,12 @@ class PaymentService
 
     private function processQrisPayment(Order $order, array $data, string $cashierId): Payment
     {
+        $total = (int) round((float) $order->total);
+
         $snapToken = Snap::getSnapToken([
             'transaction_details' => [
                 'order_id' => $order->order_number,
-                'gross_amount' => (float) $order->total,
+                'gross_amount' => $total,
             ],
             'customer_details' => [
                 'name' => $order->customer_name,
@@ -96,8 +101,8 @@ class PaymentService
             'order_id' => $order->id,
             'payment_method_id' => $data['payment_method_id'],
             'cashier_id' => $cashierId,
-            'amount' => $order->total,
-            'tendered_amount' => $order->total,
+            'amount' => $total,
+            'tendered_amount' => $total,
             'change_amount' => 0,
             'status' => 'pending',
             'snap_token' => $snapToken,

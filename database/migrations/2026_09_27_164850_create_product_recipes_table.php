@@ -9,9 +9,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('product_recipes', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->foreignUuid('product_id')->constrained('products');
-            $table->foreignUuid('ingredient_id')->constrained('products');
+            $table->id();
+            $table->foreignId('product_id')->constrained('products');
+            $table->foreignId('ingredient_id')->constrained('products');
             $table->decimal('quantity_required', 10, 2);
             $table->timestamps();
         });

@@ -9,12 +9,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('purchase_request_items', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->foreignUuid('purchase_request_id')->constrained('purchase_requests')->cascadeOnDelete();
-            $table->foreignUuid('product_id')->constrained('products');
+            $table->id();
+            $table->foreignId('purchase_request_id')->constrained('purchase_requests')->cascadeOnDelete();
+            $table->foreignId('product_id')->constrained('products');
             $table->decimal('quantity', 10, 2);
-            $table->decimal('estimated_price', 15, 2);
-            $table->decimal('subtotal', 15, 2);
+            $table->bigInteger('estimated_price');
+            $table->bigInteger('subtotal');
             $table->timestamps();
         });
     }

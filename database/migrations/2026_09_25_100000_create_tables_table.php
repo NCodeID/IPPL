@@ -9,7 +9,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('tables', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+            $table->id();
             $table->string('number');
             $table->string('status')->default('available');
             $table->boolean('is_active')->default(true);

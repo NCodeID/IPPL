@@ -12,11 +12,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('products', function (Blueprint $table) {
-            $table->uuid('id')->primary();
-            $table->foreignUuid('category_id')->constrained();
+            $table->id();
+            $table->foreignId('category_id')->constrained();
             $table->string('name');
             $table->text('description');
-            $table->decimal('price', 10, 2);
+            $table->bigInteger('price');
             $table->decimal('stock', 10, 2)->default(0);
             $table->string('image_url')->nullable();
             $table->boolean('is_sellable')->default(true);
