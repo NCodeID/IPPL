@@ -10,6 +10,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "knuckleswtf/scribe": "^5.11",
         "laravel/framework": "^13.17",
         "laravel/sanctum": "*",
         "laravel/tinker": "^3.0",

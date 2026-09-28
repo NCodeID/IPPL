@@ -9,6 +9,7 @@ use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Midtrans\Config;
+use Midtrans\Notification;
 use Midtrans\Snap;
 
 class PaymentService
@@ -102,5 +103,50 @@ class PaymentService
             'snap_token' => $snapToken,
             'payment_reference' => (string) Str::uuid(),
         ]);
+    }
+
+    public function handleMidtransNotification(array $payload): bool
+    {
+        return DB::transaction(function () use ($payload): bool {
+            $notification = new Notification($payload);
+
+            $transactionStatus = $notification->transaction_status;
+            $orderNumber = $notification->order_id;
+
+            $order = Order::where('order_number', $orderNumber)->lockForUpdate()->first();
+
+            if (! $order) {
+                throw new Exception('Order not found for this notification.');
+            }
+
+            $payment = Payment::where('order_id', $order->id)
+                ->where('status', 'pending')
+                ->first();
+
+            if (! $payment) {
+                return true;
+            }
+
+            if (in_array($transactionStatus, ['capture', 'settlement'], true)) {
+                $payment->update([
+                    'status' => 'success',
+                    'paid_at' => now(),
+                ]);
+
+                $order->payment_status = 'paid';
+                $order->save();
+
+                if ($order->order_type === 'dine_in') {
+                    $table = Table::findOrFail($order->table_id);
+                    $table->update(['status' => Table::STATUS_AVAILABLE]);
+                }
+            }
+
+            if (in_array($transactionStatus, ['cancel', 'deny', 'expire'], true)) {
+                $payment->update(['status' => 'failed']);
+            }
+
+            return true;
+        });
     }
 }
