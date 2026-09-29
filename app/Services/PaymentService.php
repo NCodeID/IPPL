@@ -113,7 +113,7 @@ class PaymentService
     {
         return DB::transaction(function () use ($payload): bool {
             $transactionStatus = $payload['transaction_status'];
-            $orderNumber = $payload['order_id'];
+            $orderNumber = $payload['order_num'];
 
             $order = Order::where('order_number', $orderNumber)->lockForUpdate()->first();
 
