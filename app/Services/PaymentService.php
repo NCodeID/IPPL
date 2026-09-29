@@ -71,8 +71,10 @@ class PaymentService
             'status' => 'success',
         ]);
 
-        $order->payment_status = 'paid';
-        $order->save();
+        $order->update([
+            'payment_status' => 'paid',
+            'status' => 'completed',
+        ]);
 
         if ($order->order_type === 'dine_in') {
             $table = Table::findOrFail($order->table_id);
@@ -135,8 +137,10 @@ class PaymentService
                     'paid_at' => now(),
                 ]);
 
-                $order->payment_status = 'paid';
-                $order->save();
+                $order->update([
+                    'payment_status' => 'paid',
+                    'status' => 'completed',
+                ]);
 
                 if ($order->order_type === 'dine_in') {
                     $table = Table::findOrFail($order->table_id);
