@@ -18,6 +18,7 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user();
     });
     Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/orders/history', [OrderController::class, 'history'])->middleware('role:admin,akuntan');
     Route::get('/orders', [OrderController::class, 'index'])->middleware('role:admin,kasir,runner,dapur');
     Route::post('/orders', [OrderController::class, 'store'])->middleware('role:admin,runner');
     Route::patch('/orders/{order}/status', [OrderController::class, 'updateStatus'])->middleware('role:admin,runner,dapur');

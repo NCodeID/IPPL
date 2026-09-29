@@ -30,6 +30,16 @@ class OrderController extends Controller
         return OrderResource::collection($query->paginate(10));
     }
 
+    public function history(): AnonymousResourceCollection
+    {
+        $orders = Order::with(['table', 'orderItems.product', 'payments'])
+            ->latest()
+            ->limit(3)
+            ->get();
+
+        return OrderResource::collection($orders);
+    }
+
     public function store(StoreOrderRequest $request, OrderService $orderService): JsonResponse
     {
         $order = $orderService->createOrder($request->validated(), $request->user()->id);
