@@ -59,6 +59,17 @@ class OrderController extends Controller
 
     public function updateStatus(UpdateOrderStatusRequest $request, Order $order, OrderService $orderService): OrderResource
     {
+        $user = auth()->user();
+        $requestedStatus = $request->input('status');
+
+        if ($user->role === 'dapur' && ! in_array($requestedStatus, ['cooking', 'ready'], true)) {
+            abort(403, 'Dapur hanya dapat mengubah status menjadi cooking atau ready.');
+        }
+
+        if ($user->role === 'runner' && $requestedStatus !== 'served') {
+            abort(403, 'Runner hanya dapat mengubah status menjadi served.');
+        }
+
         $status = $request->validated()['status'];
 
         $order = $orderService->updateStatus($order, $status, $request->user()->id);
