@@ -22,6 +22,7 @@ class ProductResource extends JsonResource
             'is_active' => $this->is_active,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
+            'total_requested' => $this->whenNotNull($this->total_requested),
             'category' => new CategoryResource($this->whenLoaded('category')),
         ];
     }

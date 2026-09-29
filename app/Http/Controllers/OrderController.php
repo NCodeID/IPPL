@@ -19,6 +19,16 @@ class OrderController extends Controller
             ->with(['table', 'runner', 'chef', 'orderItems.product', 'payments'])
             ->orderByDesc('created_at');
 
+        $user = auth()->user();
+
+        if ($user->role === 'kasir') {
+            $query->whereNotIn('status', ['completed', 'cancelled']);
+        } elseif ($user->role === 'runner') {
+            $query->whereIn('status', ['cooking', 'ready']);
+        } elseif ($user->role === 'dapur') {
+            $query->whereIn('status', ['pending', 'cooking']);
+        }
+
         if ($request->filled('status')) {
             $query->whereIn('status', array_map('trim', explode(',', $request->input('status'))));
         }

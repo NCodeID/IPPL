@@ -23,6 +23,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/orders', [OrderController::class, 'store'])->middleware('role:admin,runner');
     Route::patch('/orders/{order}/status', [OrderController::class, 'updateStatus'])->middleware('role:admin,runner,dapur');
     Route::post('/orders/{order}/payments', [PaymentController::class, 'store'])->middleware('role:admin,kasir');
+    Route::apiResource('products', ProductController::class)->only(['index', 'show'])
+        ->middleware('role:admin,kasir,runner,gudang,akuntan');
     Route::get('/sales/today', [SalesController::class, 'todaySales'])
         ->middleware('role:admin,akuntan')
         ->name('admin.sales.today');
@@ -49,5 +51,4 @@ Route::post('/login', [AuthController::class, 'login'])
 Route::post('/webhooks/midtrans', MidtransWebhookController::class);
 
 Route::apiResource('categories', CategoryController::class)->only(['index', 'show']);
-Route::apiResource('products', ProductController::class)->only(['index', 'show']);
 Route::apiResource('tables', TableController::class)->only(['index', 'show']);
