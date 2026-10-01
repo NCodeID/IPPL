@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('orders', function (Blueprint $table) {
@@ -21,7 +18,7 @@ return new class extends Migration
             $table->string('order_type');
             $table->string('status');
             $table->string('payment_status');
-            $table->string('note')->nullable();
+            $table->text('cancellation_reason')->nullable();
             $table->bigInteger('subtotal');
             $table->bigInteger('discount');
             $table->bigInteger('tax');
@@ -31,9 +28,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('orders');

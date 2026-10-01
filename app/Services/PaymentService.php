@@ -5,9 +5,9 @@ namespace App\Services;
 use App\Models\Order;
 use App\Models\Payment;
 use App\Models\Table;
-use Exception;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Midtrans\Config;
 use Midtrans\Snap;
 
@@ -25,7 +25,9 @@ class PaymentService
     public function processPayment(Order $order, array $data, string $cashierId): Payment
     {
         if (! in_array($data['type'], ['cash', 'qris'], true)) {
-            throw new Exception('Unsupported payment type.');
+            throw ValidationException::withMessages([
+                'type' => ['Unsupported payment type.'],
+            ])->status(422);
         }
 
         return DB::transaction(function () use ($order, $data, $cashierId): Payment {
@@ -44,7 +46,9 @@ class PaymentService
         $order = Order::lockForUpdate()->findOrFail($order->id);
 
         if ($order->payment_status !== 'unpaid') {
-            throw new Exception('The order has already been paid.');
+            throw ValidationException::withMessages([
+                'order' => ['Pesanan ini sudah dibayar.'],
+            ])->status(400);
         }
 
         return $order;
@@ -56,7 +60,9 @@ class PaymentService
         $tendered = (int) round((float) $data['tendered_amount']);
 
         if ($tendered < $total) {
-            throw new Exception('The tendered amount is less than the order total.');
+            throw ValidationException::withMessages([
+                'tendered_amount' => ['Uang yang dibayarkan kurang dari total pesanan.'],
+            ])->status(422);
         }
 
         $changeAmount = $tendered - $total;
@@ -113,6 +119,12 @@ class PaymentService
 
     public function handleMidtransNotification(array $payload): bool
     {
+        if (! $this->verifySignature($payload)) {
+            throw ValidationException::withMessages([
+                'signature' => ['Invalid signature.'],
+            ])->status(403);
+        }
+
         return DB::transaction(function () use ($payload): bool {
             $transactionStatus = $payload['transaction_status'];
             $orderNumber = $payload['order_num'];
@@ -120,7 +132,13 @@ class PaymentService
             $order = Order::where('order_number', $orderNumber)->lockForUpdate()->first();
 
             if (! $order) {
-                throw new Exception('Order not found for this notification.');
+                throw ValidationException::withMessages([
+                    'order' => ['Order not found for this notification.'],
+                ])->status(404);
+            }
+
+            if ($order->payment_status === 'paid') {
+                return true;
             }
 
             $payment = Payment::where('order_id', $order->id)
@@ -154,5 +172,22 @@ class PaymentService
 
             return true;
         });
+    }
+
+    private function verifySignature(array $payload): bool
+    {
+        $orderId = $payload['order_id'] ?? $payload['order_num'] ?? '';
+        $statusCode = $payload['status_code'] ?? '';
+        $grossAmount = $payload['gross_amount'] ?? '';
+        $serverKey = config('midtrans.server_key');
+        $signatureKey = $payload['signature_key'] ?? '';
+
+        if (! $orderId || ! $statusCode || ! $grossAmount || ! $serverKey || ! $signatureKey) {
+            return false;
+        }
+
+        $expectedSignature = hash('sha512', $orderId.$statusCode.$grossAmount.$serverKey);
+
+        return hash_equals($expectedSignature, $signatureKey);
     }
 }

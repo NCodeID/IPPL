@@ -11,7 +11,7 @@ class ProductController extends Controller
     public function index(): AnonymousResourceCollection
     {
         $user = auth()->user();
-        $query = Product::query()->with('category');
+        $query = Product::query()->with(['category', 'recipes.ingredient']);
 
         if ($user->role === 'admin') {
             $query->orderBy('created_at', 'desc');
@@ -40,6 +40,6 @@ class ProductController extends Controller
 
     public function show(Product $product): ProductResource
     {
-        return new ProductResource($product->load('category'));
+        return new ProductResource($product->load(['category', 'recipes.ingredient']));
     }
 }

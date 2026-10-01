@@ -20,8 +20,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/orders/history', [OrderController::class, 'history'])->middleware('role:admin,akuntan');
     Route::get('/orders', [OrderController::class, 'index'])->middleware('role:admin,kasir,runner,dapur');
+    Route::get('/orders/{order}', [OrderController::class, 'show'])->middleware('role:admin,kasir,runner,dapur');
     Route::post('/orders', [OrderController::class, 'store'])->middleware('role:admin,runner');
     Route::patch('/orders/{order}/status', [OrderController::class, 'updateStatus'])->middleware('role:admin,runner,dapur');
+    Route::patch('/orders/{order}/cancel', [OrderController::class, 'cancel'])->middleware('role:admin,runner');
     Route::post('/orders/{order}/payments', [PaymentController::class, 'store'])->middleware('role:admin,kasir');
     Route::apiResource('products', ProductController::class)->only(['index', 'show'])
         ->middleware('role:admin,kasir,runner,gudang,akuntan');

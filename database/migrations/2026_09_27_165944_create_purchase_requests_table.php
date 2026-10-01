@@ -14,6 +14,8 @@ return new class extends Migration
             $table->foreignId('warehouse_user_id')->constrained('users');
             $table->foreignId('accountant_id')->nullable()->constrained('users');
             $table->string('status')->default('pending');
+            $table->text('note')->nullable();
+            $table->timestamp('approved_at')->nullable();
             $table->bigInteger('total_estimated_cost')->default(0);
             $table->timestamps();
         });

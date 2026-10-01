@@ -24,6 +24,8 @@ class PurchaseRequest extends Model
         'warehouse_user_id',
         'accountant_id',
         'status',
+        'note',
+        'approved_at',
         'total_estimated_cost',
     ];
 

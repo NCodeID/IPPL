@@ -11,11 +11,6 @@ class Order extends Model
 {
     use HasFactory;
 
-    /**
-     * Attributes that are mass assignable.
-     *
-     * @var list<string>
-     */
     protected $fillable = [
         'order_number',
         'runner_id',
@@ -25,7 +20,7 @@ class Order extends Model
         'order_type',
         'status',
         'payment_status',
-        'note',
+        'cancellation_reason',
         'subtotal',
         'discount',
         'tax',
@@ -33,11 +28,6 @@ class Order extends Model
         'completed_at',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
     protected function casts(): array
     {
         return [

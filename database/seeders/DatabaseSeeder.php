@@ -48,40 +48,85 @@ class DatabaseSeeder extends Seeder
         $beverage = Category::create(['name' => 'Beverage']);
         $ingredient = Category::create(['name' => 'Ingredient']);
 
-        $nasiGoreng = Product::create([
-            'category_id' => $mainCourse->id,
-            'name' => 'Nasi Goreng',
-            'description' => '',
-            'price' => 35000,
-            'stock' => 10,
-            'is_sellable' => true,
-        ]);
-
-        $esTeh = Product::create([
-            'category_id' => $beverage->id,
-            'name' => 'Es Teh',
-            'description' => '',
-            'price' => 5000,
-            'stock' => 0,
-            'is_sellable' => true,
-        ]);
-
         $beras = Product::create([
             'category_id' => $ingredient->id,
-            'name' => 'Beras',
+            'name' => 'Beras (Kg)',
             'description' => '',
-            'price' => 15000,
-            'stock' => 50,
+            'price' => 12000,
+            'stock' => 50.0,
             'is_sellable' => false,
         ]);
 
         $telur = Product::create([
             'category_id' => $ingredient->id,
-            'name' => 'Telur',
+            'name' => 'Telur (Butir)',
             'description' => '',
             'price' => 2000,
-            'stock' => 0,
+            'stock' => 100.0,
             'is_sellable' => false,
+        ]);
+
+        $teh = Product::create([
+            'category_id' => $ingredient->id,
+            'name' => 'Teh Bubuk (Gram)',
+            'description' => '',
+            'price' => 100,
+            'stock' => 1000.0,
+            'is_sellable' => false,
+        ]);
+
+        $gula = Product::create([
+            'category_id' => $ingredient->id,
+            'name' => 'Gula Pasir (Gram)',
+            'description' => '',
+            'price' => 20,
+            'stock' => 2000.0,
+            'is_sellable' => false,
+        ]);
+
+        $es = Product::create([
+            'category_id' => $ingredient->id,
+            'name' => 'Es Batu (Kg)',
+            'description' => '',
+            'price' => 1500,
+            'stock' => 20.0,
+            'is_sellable' => false,
+        ]);
+
+        $airMineral = Product::create([
+            'category_id' => $beverage->id,
+            'name' => 'Air Mineral Botol',
+            'description' => '',
+            'price' => 5000,
+            'stock' => 100.0,
+            'is_sellable' => true,
+        ]);
+
+        $kerupuk = Product::create([
+            'category_id' => $mainCourse->id,
+            'name' => 'Kerupuk Kaleng',
+            'description' => '',
+            'price' => 2000,
+            'stock' => 50.0,
+            'is_sellable' => true,
+        ]);
+
+        $nasiGoreng = Product::create([
+            'category_id' => $mainCourse->id,
+            'name' => 'Nasi Goreng Spesial',
+            'description' => '',
+            'price' => 25000,
+            'stock' => 0,
+            'is_sellable' => true,
+        ]);
+
+        $esTeh = Product::create([
+            'category_id' => $beverage->id,
+            'name' => 'Es Teh Manis',
+            'description' => '',
+            'price' => 8000,
+            'stock' => 0,
+            'is_sellable' => true,
         ]);
 
         ProductRecipe::create([
@@ -96,6 +141,24 @@ class DatabaseSeeder extends Seeder
             'quantity_required' => 1.0,
         ]);
 
+        ProductRecipe::create([
+            'product_id' => $esTeh->id,
+            'ingredient_id' => $teh->id,
+            'quantity_required' => 10.0,
+        ]);
+
+        ProductRecipe::create([
+            'product_id' => $esTeh->id,
+            'ingredient_id' => $gula->id,
+            'quantity_required' => 15.0,
+        ]);
+
+        ProductRecipe::create([
+            'product_id' => $esTeh->id,
+            'ingredient_id' => $es->id,
+            'quantity_required' => 0.2,
+        ]);
+
         $orders = [
             [
                 'order_number' => 'ORD-20260929000001-101',
@@ -105,6 +168,7 @@ class DatabaseSeeder extends Seeder
                 'payment_status' => 'unpaid',
                 'chef_id' => null,
                 'completed_at' => null,
+                'cancellation_reason' => null,
                 'payment' => null,
                 'items' => [
                     ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
@@ -118,6 +182,7 @@ class DatabaseSeeder extends Seeder
                 'payment_status' => 'unpaid',
                 'chef_id' => $dapur->id,
                 'completed_at' => null,
+                'cancellation_reason' => null,
                 'payment' => null,
                 'items' => [
                     ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
@@ -132,6 +197,7 @@ class DatabaseSeeder extends Seeder
                 'payment_status' => 'unpaid',
                 'chef_id' => $dapur->id,
                 'completed_at' => null,
+                'cancellation_reason' => null,
                 'payment' => null,
                 'items' => [
                     ['product' => $nasiGoreng, 'quantity' => 2, 'note' => null],
@@ -145,6 +211,7 @@ class DatabaseSeeder extends Seeder
                 'payment_status' => 'unpaid',
                 'chef_id' => $dapur->id,
                 'completed_at' => null,
+                'cancellation_reason' => null,
                 'payment' => null,
                 'items' => [
                     ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
@@ -159,10 +226,12 @@ class DatabaseSeeder extends Seeder
                 'payment_status' => 'paid',
                 'chef_id' => $dapur->id,
                 'completed_at' => now(),
+                'cancellation_reason' => null,
                 'payment' => 'cash',
                 'items' => [
                     ['product' => $nasiGoreng, 'quantity' => 2, 'note' => null],
                     ['product' => $esTeh, 'quantity' => 3, 'note' => null],
+                    ['product' => $airMineral, 'quantity' => 1, 'note' => null],
                 ],
             ],
             [
@@ -173,6 +242,7 @@ class DatabaseSeeder extends Seeder
                 'payment_status' => 'paid',
                 'chef_id' => $dapur->id,
                 'completed_at' => now(),
+                'cancellation_reason' => null,
                 'payment' => 'qris',
                 'items' => [
                     ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
@@ -187,6 +257,7 @@ class DatabaseSeeder extends Seeder
                 'payment_status' => 'unpaid',
                 'chef_id' => null,
                 'completed_at' => null,
+                'cancellation_reason' => 'Runner salah input menu, seharusnya tanpa pedas.',
                 'payment' => null,
                 'items' => [
                     ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
@@ -217,6 +288,7 @@ class DatabaseSeeder extends Seeder
                 'tax' => $tax,
                 'total' => $subtotal + $tax,
                 'completed_at' => $attributes['completed_at'],
+                'cancellation_reason' => $attributes['cancellation_reason'],
             ]);
 
             foreach ($attributes['items'] as $item) {
@@ -267,28 +339,30 @@ class DatabaseSeeder extends Seeder
         $purchaseRequests = [
             [
                 'request_number' => 'PR-0001',
-                'status' => PurchaseRequest::STATUS_PENDING,
+                'status' => 'pending_approval',
                 'accountant_id' => null,
+                'note' => null,
+                'approved_at' => null,
                 'items' => [
                     ['product' => $beras, 'quantity' => 50],
                     ['product' => $telur, 'quantity' => 100],
+                    ['product' => $teh, 'quantity' => 500],
+                    ['product' => $gula, 'quantity' => 1000],
+                    ['product' => $es, 'quantity' => 10],
                 ],
             ],
             [
                 'request_number' => 'PR-0002',
-                'status' => PurchaseRequest::STATUS_APPROVED,
+                'status' => 'funds_released',
                 'accountant_id' => $akuntan->id,
+                'note' => 'Harga disetujui, silakan beli di pasar induk.',
+                'approved_at' => now(),
                 'items' => [
                     ['product' => $beras, 'quantity' => 25],
                     ['product' => $telur, 'quantity' => 200],
-                ],
-            ],
-            [
-                'request_number' => 'PR-0003',
-                'status' => PurchaseRequest::STATUS_COMPLETED,
-                'accountant_id' => $akuntan->id,
-                'items' => [
-                    ['product' => $beras, 'quantity' => 10],
+                    ['product' => $teh, 'quantity' => 200],
+                    ['product' => $gula, 'quantity' => 500],
+                    ['product' => $es, 'quantity' => 5],
                 ],
             ],
         ];
@@ -305,6 +379,8 @@ class DatabaseSeeder extends Seeder
                 'warehouse_user_id' => $gudang->id,
                 'accountant_id' => $attributes['accountant_id'],
                 'status' => $attributes['status'],
+                'note' => $attributes['note'],
+                'approved_at' => $attributes['approved_at'],
                 'total_estimated_cost' => $totalEstimatedCost,
             ]);
 

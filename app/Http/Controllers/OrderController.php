@@ -6,10 +6,13 @@ use App\Http\Requests\StoreOrderRequest;
 use App\Http\Requests\UpdateOrderStatusRequest;
 use App\Http\Resources\OrderResource;
 use App\Models\Order;
+use App\Models\Table;
 use App\Services\OrderService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 class OrderController extends Controller
 {
@@ -50,6 +53,13 @@ class OrderController extends Controller
         return OrderResource::collection($orders);
     }
 
+    public function show(Order $order): OrderResource
+    {
+        $order->load(['orderItems', 'table', 'chef', 'runner']);
+
+        return new OrderResource($order);
+    }
+
     public function store(StoreOrderRequest $request, OrderService $orderService): JsonResponse
     {
         $order = $orderService->createOrder($request->validated(), $request->user()->id);
@@ -75,5 +85,89 @@ class OrderController extends Controller
         $order = $orderService->updateStatus($order, $status, $request->user()->id);
 
         return new OrderResource($order);
+    }
+
+    public function cancel(Request $request, Order $order): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'cancellation_reason' => 'required|string|min:5',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Validasi gagal.',
+                'errors' => $validator->errors(),
+            ], 422);
+        }
+
+        $user = auth()->user();
+
+        if ($order->payment_status === 'paid') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Pesanan lunas tidak dapat dibatalkan.',
+            ], 400);
+        }
+
+        if (in_array($order->status, ['cancelled', 'completed'], true)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Status pesanan tidak valid.',
+            ], 400);
+        }
+
+        if ($user->role === 'runner' && $order->status !== 'pending') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Dapur sudah memproses pesanan ini. Hubungi Admin untuk membatalkan.',
+            ], 403);
+        }
+
+        $cancellationReason = $request->input('cancellation_reason');
+
+        DB::transaction(function () use ($order, $cancellationReason): void {
+            $order->load('orderItems.product.recipes.ingredient');
+
+            foreach ($order->orderItems as $orderItem) {
+                $product = $orderItem->product;
+
+                if ($product->recipes->isNotEmpty()) {
+                    foreach ($product->recipes as $recipe) {
+                        $ingredient = Product::findOrFail($recipe->ingredient_id);
+                        $restoreQuantity = $recipe->quantity_required * $orderItem->quantity;
+                        $ingredient->increment('stock', $restoreQuantity);
+                    }
+                } else {
+                    $product->increment('stock', $orderItem->quantity);
+                }
+            }
+
+            if ($order->table_id) {
+                $hasOtherActiveOrders = Order::query()
+                    ->where('table_id', $order->table_id)
+                    ->where('id', '!=', $order->id)
+                    ->whereNotIn('status', ['completed', 'cancelled'])
+                    ->exists();
+
+                if (! $hasOtherActiveOrders) {
+                    Table::where('id', $order->table_id)
+                        ->update(['status' => Table::STATUS_AVAILABLE]);
+                }
+            }
+
+            $order->update([
+                'status' => 'cancelled',
+                'cancellation_reason' => $cancellationReason,
+            ]);
+        });
+
+        $order->refresh()->load(['orderItems', 'table', 'chef', 'runner']);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Pesanan berhasil dibatalkan.',
+            'data' => new OrderResource($order),
+        ]);
     }
 }

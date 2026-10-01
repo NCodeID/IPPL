@@ -6,11 +6,18 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Table;
-use Exception;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class OrderService
 {
+    private const ALLOWED_TRANSITIONS = [
+        'pending' => ['cooking', 'cancelled'],
+        'cooking' => ['ready'],
+        'ready' => ['served'],
+        'served' => ['completed'],
+    ];
+
     public function createOrder(array $data, string $runnerId): Order
     {
         return DB::transaction(function () use ($data, $runnerId): Order {
@@ -18,7 +25,9 @@ class OrderService
                 $table = Table::lockForUpdate()->findOrFail($data['table_id']);
 
                 if ($table->status !== Table::STATUS_AVAILABLE) {
-                    throw new Exception('The selected table is not available.');
+                    throw ValidationException::withMessages([
+                        'table_id' => ['The selected table is not available.'],
+                    ])->status(409);
                 }
 
                 $table->update(['status' => Table::STATUS_OCCUPIED]);
@@ -41,7 +50,36 @@ class OrderService
             $subtotal = 0;
 
             foreach ($data['items'] as $item) {
-                $product = Product::with('recipes.ingredient')->findOrFail($item['product_id']);
+                $product = Product::with('recipes.ingredient')
+                    ->lockForUpdate()
+                    ->findOrFail($item['product_id']);
+
+                $hasRecipes = $product->recipes->isNotEmpty();
+
+                if ($hasRecipes) {
+                    foreach ($product->recipes as $recipe) {
+                        $ingredient = Product::lockForUpdate()->findOrFail($recipe->ingredient_id);
+
+                        $requiredQty = $recipe->quantity_required * $item['quantity'];
+
+                        if ($ingredient->stock < $requiredQty) {
+                            throw ValidationException::withMessages([
+                                'items' => ["Stok bahan baku {$ingredient->name} tidak mencukupi untuk menu {$product->name}."],
+                            ])->status(422);
+                        }
+
+                        $ingredient->decrement('stock', $requiredQty);
+                    }
+                } else {
+                    if ($product->stock < $item['quantity']) {
+                        throw ValidationException::withMessages([
+                            'items' => ["Insufficient stock for product: {$product->name}."],
+                        ])->status(422);
+                    }
+
+                    $product->decrement('stock', $item['quantity']);
+                }
+
                 $lineSubtotal = (int) round($product->price * $item['quantity']);
                 $subtotal = $subtotal + $lineSubtotal;
 
@@ -54,17 +92,6 @@ class OrderService
                     'subtotal' => $lineSubtotal,
                     'note' => $item['note'] ?? null,
                 ]);
-
-                foreach ($product->recipes as $recipe) {
-                    $ingredient = $recipe->ingredient;
-                    $ingredient->stock = $ingredient->stock - ($recipe->quantity_required * $item['quantity']);
-
-                    if ($ingredient->stock < 0) {
-                        throw new Exception('Insufficient stock for product: '.$ingredient->name);
-                    }
-
-                    $ingredient->save();
-                }
             }
 
             $tax = (int) round($subtotal * 0.11);
@@ -84,9 +111,23 @@ class OrderService
 
     public function updateStatus(Order $order, string $newStatus, string $actorId): Order
     {
+        $currentStatus = $order->status;
+
+        if (! isset(self::ALLOWED_TRANSITIONS[$currentStatus])) {
+            throw ValidationException::withMessages([
+                'status' => ['Status tidak valid untuk transisi.'],
+            ])->status(422);
+        }
+
+        if (! in_array($newStatus, self::ALLOWED_TRANSITIONS[$currentStatus], true)) {
+            throw ValidationException::withMessages([
+                'status' => ['Status tidak dapat dikembalikan ke tahap sebelumnya.'],
+            ])->status(422);
+        }
+
         $order->status = $newStatus;
 
-        if ($newStatus === 'cooking' || $newStatus === 'ready') {
+        if ($newStatus === 'cooking' && $order->chef_id === null) {
             $order->chef_id = $actorId;
         }
 
