@@ -9,7 +9,6 @@ use App\Models\Product;
 use App\Models\ProductRecipe;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-
 class RecipeController extends Controller
 {
     public function index(): AnonymousResourceCollection
@@ -51,7 +50,7 @@ class RecipeController extends Controller
         return (new RecipeResource($recipe->load(['product', 'ingredient'])))->response()->setStatusCode(201);
     }
 
-    public function update(UpdateRecipeRequest $request, ProductRecipe $recipe): RecipeResource
+    public function update(UpdateRecipeRequest $request, ProductRecipe $recipe): RecipeResource|JsonResponse
     {
         if ($recipe->product->is_sellable === false) {
             return response()->json([
