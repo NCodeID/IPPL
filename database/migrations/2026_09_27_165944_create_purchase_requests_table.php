@@ -11,12 +11,13 @@ return new class extends Migration
         Schema::create('purchase_requests', function (Blueprint $table) {
             $table->id();
             $table->string('request_number')->unique();
-            $table->foreignId('warehouse_user_id')->constrained('users');
-            $table->foreignId('accountant_id')->nullable()->constrained('users');
+            $table->foreignId('user_id')->constrained('users');
+            $table->foreignId('approved_by')->nullable()->constrained('users');
             $table->string('status')->default('pending');
             $table->text('note')->nullable();
             $table->timestamp('approved_at')->nullable();
             $table->bigInteger('total_estimated_cost')->default(0);
+            $table->bigInteger('total_actual_cost')->default(0);
             $table->timestamps();
         });
     }

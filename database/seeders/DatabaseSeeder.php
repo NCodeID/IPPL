@@ -340,7 +340,7 @@ class DatabaseSeeder extends Seeder
             [
                 'request_number' => 'PR-0001',
                 'status' => 'pending_approval',
-                'accountant_id' => null,
+                'approved_by' => null,
                 'note' => null,
                 'approved_at' => null,
                 'items' => [
@@ -354,7 +354,7 @@ class DatabaseSeeder extends Seeder
             [
                 'request_number' => 'PR-0002',
                 'status' => 'funds_released',
-                'accountant_id' => $akuntan->id,
+                'approved_by' => $akuntan->id,
                 'note' => 'Harga disetujui, silakan beli di pasar induk.',
                 'approved_at' => now(),
                 'items' => [
@@ -376,8 +376,8 @@ class DatabaseSeeder extends Seeder
 
             $purchaseRequest = PurchaseRequest::create([
                 'request_number' => $attributes['request_number'],
-                'warehouse_user_id' => $gudang->id,
-                'accountant_id' => $attributes['accountant_id'],
+                'user_id' => $gudang->id,
+                'approved_by' => $attributes['approved_by'],
                 'status' => $attributes['status'],
                 'note' => $attributes['note'],
                 'approved_at' => $attributes['approved_at'],
@@ -390,12 +390,13 @@ class DatabaseSeeder extends Seeder
                 PurchaseRequestItem::create([
                     'purchase_request_id' => $purchaseRequest->id,
                     'product_id' => $item['product']->id,
-                    'quantity' => $item['quantity'],
+                    'estimated_quantity' => $item['quantity'],
                     'estimated_price' => $estimatedPrice,
                     'subtotal' => $item['quantity'] * $estimatedPrice,
                 ]);
             }
         }
+        $this->call(PurchaseRequestSeeder::class);
     }
 
     private function clearSeededTables(): void

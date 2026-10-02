@@ -19,28 +19,31 @@ class PurchaseRequest extends Model
 
     public const STATUS_COMPLETED = 'completed';
 
+    public const STATUS_PENDING_SETTLEMENT = 'pending_settlement';
+
     protected $fillable = [
         'request_number',
-        'warehouse_user_id',
-        'accountant_id',
+        'user_id',
+        'approved_by',
         'status',
         'note',
         'approved_at',
         'total_estimated_cost',
+        'total_actual_cost',
     ];
-
-    public function warehouse(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'warehouse_user_id');
-    }
-
-    public function accountant(): BelongsTo
-    {
-        return $this->belongsTo(User::class);
-    }
 
     public function items(): HasMany
     {
         return $this->hasMany(PurchaseRequestItem::class);
+    }
+
+    public function requester(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function approver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 }

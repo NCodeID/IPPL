@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreProductRequest;
+use App\Http\Requests\UpdateProductRequest;
 use App\Http\Resources\ProductResource;
 use App\Models\Product;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class ProductController extends Controller
@@ -41,5 +44,43 @@ class ProductController extends Controller
     public function show(Product $product): ProductResource
     {
         return new ProductResource($product->load(['category', 'recipes.ingredient']));
+    }
+
+    public function store(StoreProductRequest $request): JsonResponse
+    {
+        $product = Product::create($request->validated());
+
+        return (new ProductResource($product))->response()->setStatusCode(201);
+    }
+
+    public function update(UpdateProductRequest $request, Product $product): ProductResource
+    {
+        $product->update($request->validated());
+
+        return new ProductResource($product);
+    }
+
+    public function destroy(Product $product): JsonResponse
+    {
+        if ($product->orderItems()->exists()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Produk tidak dapat dihapus karena sudah digunakan dalam pesanan.',
+            ], 422);
+        }
+
+        if ($product->purchaseRequestItems()->exists()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Produk tidak dapat dihapus karena sudah digunakan dalam permintaan pembelian.',
+            ], 422);
+        }
+
+        $product->delete();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Produk berhasil dihapus.',
+        ]);
     }
 }

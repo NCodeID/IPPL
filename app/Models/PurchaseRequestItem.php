@@ -13,8 +13,10 @@ class PurchaseRequestItem extends Model
     protected $fillable = [
         'purchase_request_id',
         'product_id',
-        'quantity',
+        'estimated_quantity',
         'estimated_price',
+        'actual_quantity',
+        'actual_price',
         'subtotal',
     ];
 
