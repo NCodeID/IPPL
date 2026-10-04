@@ -15,6 +15,9 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 
+/**
+ * @group Order Management
+ */
 class OrderController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection

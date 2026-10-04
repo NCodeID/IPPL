@@ -8,6 +8,9 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * @group Webhooks
+ */
 class MidtransWebhookController extends Controller
 {
     public function __invoke(Request $request, PaymentService $paymentService): JsonResponse

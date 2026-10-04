@@ -6,6 +6,9 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use Illuminate\Http\Request;
 
+/**
+ * @group Reports
+ */
 class ReportController extends Controller
 {
    

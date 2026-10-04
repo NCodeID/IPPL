@@ -10,6 +10,9 @@ use App\Models\Table;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
+/**
+ * @group Table Management
+ */
 class TableController extends Controller
 {
     public function index(): AnonymousResourceCollection

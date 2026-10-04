@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Payment;
 
+/**
+ * @group Transactions
+ */
 class TransactionController extends Controller
 {
     // tranksaksi hari ini

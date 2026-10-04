@@ -8,6 +8,9 @@ use App\Models\Order;
 use App\Services\PaymentService;
 use Illuminate\Http\JsonResponse;
 
+/**
+ * @group Payment Management
+ */
 class PaymentController extends Controller
 {
     public function store(ProcessPaymentRequest $request, Order $order, PaymentService $paymentService): JsonResponse

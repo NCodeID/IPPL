@@ -6,6 +6,9 @@ use App\Models\Order;
 use Illuminate\Http\Request;
 
 
+/**
+ * @group Sales
+ */
 class SalesController extends Controller
 {
     // khusus hari ini

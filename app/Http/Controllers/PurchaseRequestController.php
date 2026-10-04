@@ -11,6 +11,9 @@ use App\Services\PurchaseRequestService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
+/**
+ * @group Purchase Request Management
+ */
 class PurchaseRequestController extends Controller
 {
     public function index(): AnonymousResourceCollection
