@@ -43,10 +43,15 @@ class DatabaseSeeder extends Seeder
 
         $cashPaymentMethod = PaymentMethod::create(['name' => 'Cash - Rupiah', 'type' => 'cash']);
         $qrisPaymentMethod = PaymentMethod::create(['name' => 'QRIS - BCA', 'type' => 'qris']);
+        $bankTransferPaymentMethod = PaymentMethod::create(['name' => 'Bank Transfer - BCA', 'type' => 'bank_transfer']);
+        $ewalletPaymentMethod = PaymentMethod::create(['name' => 'GoPay', 'type' => 'ewallet']);
+        $creditCardPaymentMethod = PaymentMethod::create(['name' => 'Credit Card - Visa', 'type' => 'credit_card']);
 
         $mainCourse = Category::create(['name' => 'Main Course']);
         $beverage = Category::create(['name' => 'Beverage']);
         $ingredient = Category::create(['name' => 'Ingredient']);
+        $dessert = Category::create(['name' => 'Dessert']);
+        $snack = Category::create(['name' => 'Snack']);
 
         $beras = Product::create([
             'category_id' => $ingredient->id,
@@ -129,6 +134,33 @@ class DatabaseSeeder extends Seeder
             'is_sellable' => true,
         ]);
 
+        $kopi = Product::create([
+            'category_id' => $beverage->id,
+            'name' => 'Kopi Hitam',
+            'description' => '',
+            'price' => 7000,
+            'stock' => 0,
+            'is_sellable' => true,
+        ]);
+
+        $kacangTanah = Product::create([
+            'category_id' => $snack->id,
+            'name' => 'Kacang Tanah Goreng',
+            'description' => '',
+            'price' => 5000,
+            'stock' => 0,
+            'is_sellable' => true,
+        ]);
+
+        $pisangGoreng = Product::create([
+            'category_id' => $dessert->id,
+            'name' => 'Pisang Goreng',
+            'description' => '',
+            'price' => 12000,
+            'stock' => 0,
+            'is_sellable' => true,
+        ]);
+
         ProductRecipe::create([
             'product_id' => $nasiGoreng->id,
             'ingredient_id' => $beras->id,
@@ -159,7 +191,38 @@ class DatabaseSeeder extends Seeder
             'quantity_required' => 0.2,
         ]);
 
+        ProductRecipe::create([
+            'product_id' => $kopi->id,
+            'ingredient_id' => $gula->id,
+            'quantity_required' => 5.0,
+        ]);
+
+        ProductRecipe::create([
+            'product_id' => $kopi->id,
+            'ingredient_id' => $teh->id,
+            'quantity_required' => 2.0,
+        ]);
+
+        ProductRecipe::create([
+            'product_id' => $kacangTanah->id,
+            'ingredient_id' => $gula->id,
+            'quantity_required' => 10.0,
+        ]);
+
+        ProductRecipe::create([
+            'product_id' => $pisangGoreng->id,
+            'ingredient_id' => $gula->id,
+            'quantity_required' => 15.0,
+        ]);
+
+        ProductRecipe::create([
+            'product_id' => $pisangGoreng->id,
+            'ingredient_id' => $teh->id,
+            'quantity_required' => 5.0,
+        ]);
+
         $orders = [
+            // Pending Table Orders (5 orders)
             [
                 'order_number' => 'ORD-20260929000001-101',
                 'table' => $pendingTable,
@@ -172,37 +235,162 @@ class DatabaseSeeder extends Seeder
                 'payment' => null,
                 'items' => [
                     ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
+                    ['product' => $esTeh, 'quantity' => 2, 'note' => null],
+                    ['product' => $airMineral, 'quantity' => 1, 'note' => null],
+                    ['product' => $kopi, 'quantity' => 1, 'note' => null],
+                    ['product' => $kacangTanah, 'quantity' => 1, 'note' => null],
                 ],
             ],
             [
-                'order_number' => 'ORD-20260929000002-102',
-                'table' => $cookingTable,
-                'customer_name' => 'Siti Aminah',
-                'status' => 'cooking',
+                'order_number' => 'ORD-20260929000008-108',
+                'table' => $pendingTable,
+                'customer_name' => 'Lia Mariana',
+                'status' => 'pending',
                 'payment_status' => 'unpaid',
-                'chef_id' => $dapur->id,
+                'chef_id' => null,
+                'completed_at' => null,
+                'cancellation_reason' => null,
+                'payment' => null,
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 2, 'note' => 'Extra pedas'],
+                    ['product' => $esTeh, 'quantity' => 1, 'note' => 'Manis sedikit'],
+                    ['product' => $airMineral, 'quantity' => 2, 'note' => null],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-20260929000009-109',
+                'table' => $pendingTable,
+                'customer_name' => 'Rahmat Hidayat',
+                'status' => 'pending',
+                'payment_status' => 'unpaid',
+                'chef_id' => null,
                 'completed_at' => null,
                 'cancellation_reason' => null,
                 'payment' => null,
                 'items' => [
                     ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
-                    ['product' => $esTeh, 'quantity' => 2, 'note' => 'Es batu sedikit'],
+                    ['product' => $kopi, 'quantity' => 2, 'note' => 'Tanpa gula'],
+                    ['product' => $kacangTanah, 'quantity' => 2, 'note' => null],
                 ],
             ],
             [
-                'order_number' => 'ORD-20260929000003-103',
-                'table' => null,
-                'customer_name' => 'Andi Wijaya',
-                'status' => 'ready',
+                'order_number' => 'ORD-2026092900010-110',
+                'table' => $pendingTable,
+                'customer_name' => 'Sariyah',
+                'status' => 'pending',
                 'payment_status' => 'unpaid',
-                'chef_id' => $dapur->id,
+                'chef_id' => null,
                 'completed_at' => null,
                 'cancellation_reason' => null,
                 'payment' => null,
                 'items' => [
-                    ['product' => $nasiGoreng, 'quantity' => 2, 'note' => null],
+                    ['product' => $nasiGoreng, 'quantity' => 3, 'note' => 'Special'],
+                    ['product' => $esTeh, 'quantity' => 3, 'note' => 'Es batu banyak'],
+                    ['product' => $pisangGoreng, 'quantity' => 2, 'note' => 'Untuk dibawa pulang'],
                 ],
             ],
+            [
+                'order_number' => 'ORD-2026092900011-111',
+                'table' => $pendingTable,
+                'customer_name' => 'Taufik Hidayat',
+                'status' => 'pending',
+                'payment_status' => 'unpaid',
+                'chef_id' => null,
+                'completed_at' => null,
+                'cancellation_reason' => null,
+                'payment' => null,
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
+                    ['product' => $airMineral, 'quantity' => 1, 'note' => null],
+                ],
+            ],
+            
+            // Cooking Table Orders (5 orders)
+            [
+                'order_number' => 'ORD-20260929000002-102',
+                'table' => $cookingTable,
+                'customer_name' => 'Siti Aminah',
+                'status' => 'completed',
+                'payment_status' => 'paid',
+                'chef_id' => $dapur->id,
+                'completed_at' => now(),
+                'cancellation_reason' => null,
+                'payment' => 'cash',
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
+                    ['product' => $esTeh, 'quantity' => 2, 'note' => 'Es batu sedikit'],
+                    ['product' => $airMineral, 'quantity' => 1, 'note' => null],
+                    ['product' => $kopi, 'quantity' => 1, 'note' => null],
+                    ['product' => $kacangTanah, 'quantity' => 1, 'note' => null],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900012-112',
+                'table' => $cookingTable,
+                'customer_name' => 'Umar Farooq',
+                'status' => 'completed',
+                'payment_status' => 'paid',
+                'chef_id' => $dapur->id,
+                'completed_at' => now(),
+                'cancellation_reason' => null,
+                'payment' => 'qris',
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 2, 'note' => 'Tanpa telur'],
+                    ['product' => $esTeh, 'quantity' => 1, 'note' => 'Manis'],
+                    ['product' => $kopi, 'quantity' => 1, 'note' => 'Panasss'],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900013-113',
+                'table' => $cookingTable,
+                'customer_name' => 'Vivi Yuliana',
+                'status' => 'completed',
+                'payment_status' => 'paid',
+                'chef_id' => $dapur->id,
+                'completed_at' => now(),
+                'cancellation_reason' => null,
+                'payment' => 'cash',
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
+                    ['product' => $esTeh, 'quantity' => 2, 'note' => null],
+                    ['product' => $airMineral, 'quantity' => 1, 'note' => null],
+                    ['product' => $pisangGoreng, 'quantity' => 1, 'note' => 'Selamat pagi'],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900014-114',
+                'table' => $cookingTable,
+                'customer_name' => 'Wahyu Saputra',
+                'status' => 'completed',
+                'payment_status' => 'paid',
+                'chef_id' => $dapur->id,
+                'completed_at' => now(),
+                'cancellation_reason' => null,
+                'payment' => 'bank_transfer',
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 3, 'note' => 'Extra nasi'],
+                    ['product' => $esTeh, 'quantity' => 2, 'note' => 'Less sweet'],
+                    ['product' => $kopi, 'quantity' => 2, 'note' => 'Hangat'],
+                    ['product' => $kacangTanah, 'quantity' => 1, 'note' => 'Untuk cemilan'],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900015-115',
+                'table' => $cookingTable,
+                'customer_name' => 'Xavier Nathanael',
+                'status' => 'completed',
+                'payment_status' => 'paid',
+                'chef_id' => $dapur->id,
+                'completed_at' => now(),
+                'cancellation_reason' => null,
+                'payment' => 'ewallet',
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
+                    ['product' => $airMineral, 'quantity' => 2, 'note' => 'Dingin'],
+                ],
+            ],
+            
+            // Served Table Orders (5 orders)
             [
                 'order_number' => 'ORD-20260929000004-104',
                 'table' => $servedTable,
@@ -219,6 +407,73 @@ class DatabaseSeeder extends Seeder
                 ],
             ],
             [
+                'order_number' => 'ORD-2026092900016-116',
+                'table' => $servedTable,
+                'customer_name' => 'Yulianti',
+                'status' => 'served',
+                'payment_status' => 'unpaid',
+                'chef_id' => $dapur->id,
+                'completed_at' => null,
+                'cancellation_reason' => null,
+                'payment' => null,
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 2, 'note' => 'Special'],
+                    ['product' => $esTeh, 'quantity' => 3, 'note' => 'Manis banget'],
+                    ['product' => $airMineral, 'quantity' => 1, 'note' => null],
+                    ['product' => $kopi, 'quantity' => 1, 'note' => 'Panasss'],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900017-117',
+                'table' => $servedTable,
+                'customer_name' => 'Zainal Abidin',
+                'status' => 'served',
+                'payment_status' => 'unpaid',
+                'chef_id' => $dapur->id,
+                'completed_at' => null,
+                'cancellation_reason' => null,
+                'payment' => null,
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
+                    ['product' => $kopi, 'quantity' => 2, 'note' => 'Tanpa gula'],
+                    ['product' => $kacangTanah, 'quantity' => 1, 'note' => 'Untuk tambahan'],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900018-118',
+                'table' => $servedTable,
+                'customer_name' => 'Adelia Putri',
+                'status' => 'served',
+                'payment_status' => 'unpaid',
+                'chef_id' => $dapur->id,
+                'completed_at' => null,
+                'cancellation_reason' => null,
+                'payment' => null,
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
+                    ['product' => $esTeh, 'quantity' => 1, 'note' => null],
+                    ['product' => $pisangGoreng, 'quantity' => 2, 'note' => 'Untuk anak-anak'],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900019-119',
+                'table' => $servedTable,
+                'customer_name' => 'Bambang Pamungkas',
+                'status' => 'served',
+                'payment_status' => 'unpaid',
+                'chef_id' => $dapur->id,
+                'completed_at' => null,
+                'cancellation_reason' => null,
+                'payment' => null,
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 2, 'note' => 'Nasi sedikit'],
+                    ['product' => $airMineral, 'quantity' => 2, 'note' => null],
+                    ['product' => $kopi, 'quantity' => 1, 'note' => 'Untuk semangat pagi'],
+                ],
+            ],
+            
+            // Cash Table Orders (5 orders)
+            [
                 'order_number' => 'ORD-20260929000005-105',
                 'table' => $cashTable,
                 'customer_name' => 'Dewi Lestari',
@@ -232,8 +487,78 @@ class DatabaseSeeder extends Seeder
                     ['product' => $nasiGoreng, 'quantity' => 2, 'note' => null],
                     ['product' => $esTeh, 'quantity' => 3, 'note' => null],
                     ['product' => $airMineral, 'quantity' => 1, 'note' => null],
+                    ['product' => $kopi, 'quantity' => 2, 'note' => null],
+                    ['product' => $kacangTanah, 'quantity' => 1, 'note' => null],
                 ],
             ],
+            [
+                'order_number' => 'ORD-2026092900020-120',
+                'table' => $cashTable,
+                'customer_name' => 'Citra Lestari',
+                'status' => 'completed',
+                'payment_status' => 'paid',
+                'chef_id' => $dapur->id,
+                'completed_at' => now(),
+                'cancellation_reason' => null,
+                'payment' => 'cash',
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
+                    ['product' => $esTeh, 'quantity' => 2, 'note' => 'Less ice'],
+                    ['product' => $airMineral, 'quantity' => 1, 'note' => null],
+                    ['product' => $kopi, 'quantity' => 1, 'note' => 'Panasss'],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900021-121',
+                'table' => $cashTable,
+                'customer_name' => 'Dedi Kusuma',
+                'status' => 'completed',
+                'payment_status' => 'paid',
+                'chef_id' => $dapur->id,
+                'completed_at' => now(),
+                'cancellation_reason' => null,
+                'payment' => 'cash',
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 3, 'note' => 'Special'],
+                    ['product' => $esTeh, 'quantity' => 1, 'note' => 'Manis'],
+                    ['product' => $kopi, 'quantity' => 2, 'note' => 'Tanpa gula'],
+                    ['product' => $kacangTanah, 'quantity' => 1, 'note' => 'Untuk cemilan'],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900022-122',
+                'table' => $cashTable,
+                'customer_name' => 'Ela Novita',
+                'status' => 'completed',
+                'payment_status' => 'paid',
+                'chef_id' => $dapur->id,
+                'completed_at' => now(),
+                'cancellation_reason' => null,
+                'payment' => 'cash',
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 2, 'note' => 'Extra telur'],
+                    ['product' => $airMineral, 'quantity' => 3, 'note' => 'Dingin'],
+                    ['product' => $pisangGoreng, 'quantity' => 1, 'note' => 'Untuk dessert'],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900023-123',
+                'table' => $cashTable,
+                'customer_name' => 'Farhan Akbar',
+                'status' => 'completed',
+                'payment_status' => 'paid',
+                'chef_id' => $dapur->id,
+                'completed_at' => now(),
+                'cancellation_reason' => null,
+                'payment' => 'cash',
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
+                    ['product' => $esTeh, 'quantity' => 2, 'note' => null],
+                    ['product' => $kopi, 'quantity' => 1, 'note' => 'Hangat'],
+                ],
+            ],
+            
+            // QRIS Table Orders (5 orders)
             [
                 'order_number' => 'ORD-20260929000006-106',
                 'table' => $qrisTable,
@@ -247,8 +572,78 @@ class DatabaseSeeder extends Seeder
                 'items' => [
                     ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
                     ['product' => $esTeh, 'quantity' => 2, 'note' => null],
+                    ['product' => $airMineral, 'quantity' => 1, 'note' => null],
+                    ['product' => $kopi, 'quantity' => 1, 'note' => null],
+                    ['product' => $kacangTanah, 'quantity' => 1, 'note' => null],
                 ],
             ],
+            [
+                'order_number' => 'ORD-2026092900024-124',
+                'table' => $qrisTable,
+                'customer_name' => 'Gita Permata',
+                'status' => 'completed',
+                'payment_status' => 'paid',
+                'chef_id' => $dapur->id,
+                'completed_at' => now(),
+                'cancellation_reason' => null,
+                'payment' => 'qris',
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 2, 'note' => 'Tanpa cabe'],
+                    ['product' => $esTeh, 'quantity' => 1, 'note' => 'Manis'],
+                    ['product' => $airMineral, 'quantity' => 1, 'note' => null],
+                    ['product' => $kopi, 'quantity' => 1, 'note' => 'Panasss'],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900025-125',
+                'table' => $qrisTable,
+                'customer_name' => 'Heri Susanto',
+                'status' => 'completed',
+                'payment_status' => 'paid',
+                'chef_id' => $dapur->id,
+                'completed_at' => now(),
+                'cancellation_reason' => null,
+                'payment' => 'qris',
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
+                    ['product' => $kopi, 'quantity' => 2, 'note' => 'Tanpa gula'],
+                    ['product' => $kacangTanah, 'quantity' => 1, 'note' => 'Untuk tambahan'],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900026-126',
+                'table' => $qrisTable,
+                'customer_name' => 'Indah Lestari',
+                'status' => 'completed',
+                'payment_status' => 'paid',
+                'chef_id' => $dapur->id,
+                'completed_at' => now(),
+                'cancellation_reason' => null,
+                'payment' => 'qris',
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
+                    ['product' => $esTeh, 'quantity' => 1, 'note' => null],
+                    ['product' => $pisangGoreng, 'quantity' => 2, 'note' => 'Untuk anak-anak'],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900027-127',
+                'table' => $qrisTable,
+                'customer_name' => 'Joko Widodo',
+                'status' => 'completed',
+                'payment_status' => 'paid',
+                'chef_id' => $dapur->id,
+                'completed_at' => now(),
+                'cancellation_reason' => null,
+                'payment' => 'qris',
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 2, 'note' => 'Nasi sedikit'],
+                    ['product' => $airMineral, 'quantity' => 2, 'note' => null],
+                    ['product' => $kopi, 'quantity' => 1, 'note' => 'Untuk semangat pagi'],
+                ],
+            ],
+            
+            // Cancelled Table Orders (5 orders)
             [
                 'order_number' => 'ORD-20260929000007-107',
                 'table' => $cancelledTable,
@@ -261,6 +656,156 @@ class DatabaseSeeder extends Seeder
                 'payment' => null,
                 'items' => [
                     ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
+                    ['product' => $esTeh, 'quantity' => 2, 'note' => null],
+                    ['product' => $airMineral, 'quantity' => 1, 'note' => null],
+                    ['product' => $kopi, 'quantity' => 1, 'note' => null],
+                    ['product' => $kacangTanah, 'quantity' => 1, 'note' => null],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900028-128',
+                'table' => $cancelledTable,
+                'customer_name' => 'Kartini',
+                'status' => 'cancelled',
+                'payment_status' => 'unpaid',
+                'chef_id' => null,
+                'completed_at' => null,
+                'cancellation_reason' => 'Pelanggan berubah pikiran, ingin pesan yang lain.',
+                'payment' => null,
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
+                    ['product' => $esTeh, 'quantity' => 2, 'note' => 'Less sweet'],
+                    ['product' => $kopi, 'quantity' => 1, 'note' => 'Panasss'],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900029-129',
+                'table' => $cancelledTable,
+                'customer_name' => 'Lukman Hakim',
+                'status' => 'cancelled',
+                'payment_status' => 'unpaid',
+                'chef_id' => null,
+                'completed_at' => null,
+                'cancellation_reason' => 'Stok habis untuk pesanan yang diminta.',
+                'payment' => null,
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 2, 'note' => 'Special'],
+                    ['product' => $airMineral, 'quantity' => 1, 'note' => null],
+                    ['product' => $pisangGoreng, 'quantity' => 1, 'note' => 'Untuk dibawa pulang'],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900030-130',
+                'table' => $cancelledTable,
+                'customer_name' => 'Mega Setiawan',
+                'status' => 'cancelled',
+                'payment_status' => 'unpaid',
+                'chef_id' => null,
+                'completed_at' => null,
+                'cancellation_reason' => 'Pelanggan terlambat datang, makanan sudah dingin.',
+                'payment' => null,
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
+                    ['product' => $esTeh, 'quantity' => 2, 'note' => null],
+                    ['product' => $kopi, 'quantity' => 1, 'note' => 'Hangat'],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900031-131',
+                'table' => $cancelledTable,
+                'customer_name' => 'Nina Anggraini',
+                'status' => 'cancelled',
+                'payment_status' => 'unpaid',
+                'chef_id' => null,
+                'completed_at' => null,
+                'cancellation_reason' => 'Pesanan dibatalkan karena alasan keluarga.',
+                'payment' => null,
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 3, 'note' => 'Extra nasi'],
+                    ['product' => $airMineral, 'quantity' => 2, 'note' => 'Dingin'],
+                    ['product' => $kacangTanah, 'quantity' => 1, 'note' => 'Untuk cemilan'],
+                ],
+            ],
+            
+            // Takeaway Orders (5 orders)
+            [
+                'order_number' => 'ORD-20260929000003-103',
+                'table' => null,
+                'customer_name' => 'Andi Wijaya',
+                'status' => 'ready',
+                'payment_status' => 'unpaid',
+                'chef_id' => $dapur->id,
+                'completed_at' => null,
+                'cancellation_reason' => null,
+                'payment' => null,
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 2, 'note' => null],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900032-132',
+                'table' => null,
+                'customer_name' => 'Oscar Fernando',
+                'status' => 'ready',
+                'payment_status' => 'unpaid',
+                'chef_id' => $dapur->id,
+                'completed_at' => null,
+                'cancellation_reason' => null,
+                'payment' => null,
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
+                    ['product' => $esTeh, 'quantity' => 2, 'note' => 'Less ice'],
+                    ['product' => $airMineral, 'quantity' => 1, 'note' => null],
+                    ['product' => $kopi, 'quantity' => 1, 'note' => 'Panasss'],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900033-133',
+                'table' => null,
+                'customer_name' => 'Putri Indah Sari',
+                'status' => 'ready',
+                'payment_status' => 'unpaid',
+                'chef_id' => $dapur->id,
+                'completed_at' => null,
+                'cancellation_reason' => null,
+                'payment' => null,
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 2, 'note' => 'Special'],
+                    ['product' => $esTeh, 'quantity' => 1, 'note' => 'Manis'],
+                    ['product' => $kopi, 'quantity' => 2, 'note' => 'Tanpa gula'],
+                    ['product' => $kacangTanah, 'quantity' => 1, 'note' => 'Untuk cemilan'],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900034-134',
+                'table' => null,
+                'customer_name' => 'Qoriah Hasanah',
+                'status' => 'ready',
+                'payment_status' => 'unpaid',
+                'chef_id' => $dapur->id,
+                'completed_at' => null,
+                'cancellation_reason' => null,
+                'payment' => null,
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 2, 'note' => 'Extra telur'],
+                    ['product' => $airMineral, 'quantity' => 3, 'note' => 'Dingin'],
+                    ['product' => $pisangGoreng, 'quantity' => 1, 'note' => 'Untuk dessert'],
+                ],
+            ],
+            [
+                'order_number' => 'ORD-2026092900035-135',
+                'table' => null,
+                'customer_name' => 'Rani Kartika',
+                'status' => 'ready',
+                'payment_status' => 'unpaid',
+                'chef_id' => $dapur->id,
+                'completed_at' => null,
+                'cancellation_reason' => null,
+                'payment' => null,
+                'items' => [
+                    ['product' => $nasiGoreng, 'quantity' => 1, 'note' => null],
+                    ['product' => $esTeh, 'quantity' => 2, 'note' => null],
+                    ['product' => $kopi, 'quantity' => 1, 'note' => 'Hangat'],
                 ],
             ],
         ];
@@ -363,6 +908,48 @@ class DatabaseSeeder extends Seeder
                     ['product' => $teh, 'quantity' => 200],
                     ['product' => $gula, 'quantity' => 500],
                     ['product' => $es, 'quantity' => 5],
+                ],
+            ],
+            [
+                'request_number' => 'PR-0003',
+                'status' => 'rejected',
+                'approved_by' => $akuntan->id,
+                'note' => 'Harga terlalu mahal, cari supplier lain.',
+                'approved_at' => now(),
+                'items' => [
+                    ['product' => $beras, 'quantity' => 30],
+                    ['product' => $telur, 'quantity' => 150],
+                    ['product' => $teh, 'quantity' => 300],
+                    ['product' => $gula, 'quantity' => 750],
+                    ['product' => $es, 'quantity' => 8],
+                ],
+            ],
+            [
+                'request_number' => 'PR-0004',
+                'status' => 'pending_approval',
+                'approved_by' => null,
+                'note' => 'Menunggu persetujuan anggaran.',
+                'approved_at' => null,
+                'items' => [
+                    ['product' => $kopi, 'quantity' => 10],
+                    ['product' => $kacangTanah, 'quantity' => 20],
+                    ['product' => $pisangGoreng, 'quantity' => 15],
+                    ['product' => $gula, 'quantity' => 100],
+                    ['product' => $teh, 'quantity' => 50],
+                ],
+            ],
+            [
+                'request_number' => 'PR-0005',
+                'status' => 'funds_released',
+                'approved_by' => $akuntan->id,
+                'note' => 'Persetujuan untuk pembelian bahan bakar.',
+                'approved_at' => now(),
+                'items' => [
+                    ['product' => $beras, 'quantity' => 40],
+                    ['product' => $telur, 'quantity' => 180],
+                    ['product' => $teh, 'quantity' => 400],
+                    ['product' => $gula, 'quantity' => 600],
+                    ['product' => $es, 'quantity' => 12],
                 ],
             ],
         ];
