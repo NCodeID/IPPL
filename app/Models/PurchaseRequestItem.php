@@ -2,11 +2,10 @@
 
 namespace App\Models;
 
-use Database\Factories\PurchaseRequestItemFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable(['purchase_request_id', 'ingredient_id', 'estimated_quantity', 'estimated_price', 'actual_quantity', 'actual_price', 'estimated_subtotal', 'actual_subtotal'])]
 class PurchaseRequestItem extends Model

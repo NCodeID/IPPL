@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->seedRolesAndUsers();
+        $this->call(PermissionSeeder::class);
         $this->seedCategoriesAndProducts();
         $this->seedUnitsAndIngredients();
         $this->seedProductRecipes();

@@ -31,3 +31,5 @@ Thumbs.db
 boost.json
 CLAUDE.md
 AGENTS.md
+.commandcode*
+*.sql

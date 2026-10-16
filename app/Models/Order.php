@@ -2,13 +2,12 @@
 
 namespace App\Models;
 
-use Database\Factories\OrderFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\Model;
 
 #[Fillable(['order_number', 'runner_id', 'chef_id', 'table_id', 'customer_name', 'order_type', 'status', 'cancellation_reason', 'subtotal', 'discount', 'tax', 'total', 'completed_at'])]
 class Order extends Model

@@ -1,11 +1,37 @@
 <?php
 
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\LogoutController;
+use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Rbac\PermissionController;
+use App\Http\Controllers\Rbac\RoleController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');
+Route::post("/login", [LoginController::class, "login"]);
 
-Route::post('/login', [LoginController::class, 'login']);
+Route::middleware(["auth:sanctum", "active"])->group(function () {
+    Route::get("/user", function (Request $request) {
+        return $request->user()->load("role.permissions");
+    });
+
+    Route::post("/logout", [LogoutController::class, "logout"]);
+});
+
+Route::middleware(["auth:sanctum", "permission:manage_roles"])->group(
+    function () {
+        Route::apiResource("roles", RoleController::class);
+    },
+);
+
+Route::middleware(["auth:sanctum", "permission:manage_permissions"])->group(
+    function () {
+        Route::apiResource("permissions", PermissionController::class);
+    },
+);
+
+Route::middleware(["auth:sanctum", "permission:manage_users"])->group(
+    function () {
+        Route::post("/register", [RegisterController::class, "register"]);
+    },
+);

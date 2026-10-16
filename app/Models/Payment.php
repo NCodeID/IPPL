@@ -2,11 +2,10 @@
 
 namespace App\Models;
 
-use Database\Factories\PaymentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable(['order_id', 'payment_method_id', 'cashier_id', 'amount', 'tendered_amount', 'change_amount', 'status', 'snap_token', 'payment_reference', 'paid_at'])]
 class Payment extends Model

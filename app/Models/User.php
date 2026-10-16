@@ -11,8 +11,10 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(["name", "email", "password", "role_id", "is_active"])]
-#[Hidden(["password", "remember_token"])]
+/** @property-read Role|null $role */
+
+#[Fillable(['name', 'email', 'password', 'role_id', 'is_active'])]
+#[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
@@ -23,14 +25,32 @@ class User extends Authenticatable
         return $this->belongsTo(Role::class);
     }
 
+    public function hasRole(string|array $roles): bool
+    {
+        $roles = is_array($roles) ? $roles : [$roles];
+
+        return in_array($this->role?->name, $roles);
+    }
+
+    public function hasPermissionTo(string|array $permissions): bool
+    {
+        $permissions = is_array($permissions) ? $permissions : [$permissions];
+
+        if (! $this->role) {
+            return false;
+        }
+
+        return $this->role->permissions()->whereIn('name', $permissions)->exists();
+    }
+
     protected function casts(): array
     {
         return [
-            "is_active" => "boolean",
-            "created_at" => "datetime",
-            "updated_at" => "datetime",
-            "email_verified_at" => "datetime",
-            "password" => "hashed",
+            'is_active' => 'boolean',
+            'created_at' => 'datetime',
+            'updated_at' => 'datetime',
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
         ];
     }
 }
