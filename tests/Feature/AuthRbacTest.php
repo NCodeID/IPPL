@@ -39,8 +39,6 @@ beforeEach(function () {
  *
  * Izin yang tersedia mencakup seluruh domain entitas aplikasi POS,
  * memungkinkan kontrol akses yang granular di setiap route API.
- *
- * @return void
  */
 function seedRolesAndPermission(): void
 {
@@ -85,13 +83,12 @@ function seedRolesAndPermission(): void
  *
  * @param  string  $role  Nama peran yang akan diberikan kepada pengguna.
  *                        Default-nya adalah 'admin'.
- * @return User
  */
 function createUser(string $role = 'admin'): User
 {
     return User::create([
         'name' => 'admin nih bos',
-        'email' => 'admin@pos.com',
+        'email' => $role.'-'.uniqid().'@pos.com',
         'password' => Hash::make('password'),
         'role_id' => Role::where('name', $role)->first()->id,
         'is_active' => true,
