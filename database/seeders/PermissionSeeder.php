@@ -19,6 +19,7 @@ class PermissionSeeder extends Seeder
             'manage_units' => 'Manage measurement units',
             'manage_ingredients' => 'Manage ingredients',
             'manage_tables' => 'Manage restaurant tables',
+            'view_tables' => 'View restaurant tables',
             'manage_orders' => 'Manage orders',
             'manage_purchase_requests' => 'Manage purchase requests',
             'manage_payments' => 'Manage payments',
@@ -43,6 +44,7 @@ class PermissionSeeder extends Seeder
                 'manage_orders',
                 'manage_payments',
                 'manage_cash_transactions',
+                'view_tables',
             ],
             'dapur' => [
                 'manage_orders',
@@ -51,6 +53,7 @@ class PermissionSeeder extends Seeder
             ],
             'runner' => [
                 'manage_orders',
+                'view_tables',
             ],
             'gudang' => [
                 'manage_ingredients',
