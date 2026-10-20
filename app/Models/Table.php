@@ -7,8 +7,20 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use OpenApi\Attributes as OA;
 
 #[Fillable(['number', 'is_active'])]
+#[OA\Schema(
+    schema: 'Table',
+    properties: [
+        new OA\Property(property: 'id', type: 'integer'),
+        new OA\Property(property: 'number', type: 'integer'),
+        new OA\Property(property: 'status', type: 'string', enum: ['processing', 'occupied', 'available']),
+        new OA\Property(property: 'is_active', type: 'boolean'),
+        new OA\Property(property: 'created_at', type: 'string', format: 'date-time', nullable: true),
+        new OA\Property(property: 'updated_at', type: 'string', format: 'date-time', nullable: true),
+    ],
+)]
 class Table extends Model
 {
     use HasFactory;

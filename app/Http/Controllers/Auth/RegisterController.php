@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use OpenApi\Attributes as OA;
 
 /*
 |
@@ -23,6 +24,41 @@ use Illuminate\Validation\ValidationException;
 
 class RegisterController extends Controller
 {
+    #[OA\Post(
+        path: '/api/register',
+        operationId: 'authRegister',
+        summary: 'Register user baru',
+        description: 'Membuat user baru. Membutuhkan permission manage_users. Jika role_id tidak dikirim, defaults ke role kasir.',
+        tags: ['Auth'],
+        security: [['sanctum' => []]],
+        requestBody: new OA\RequestBody(
+            required: true,
+            content: new OA\JsonContent(
+                required: ['name', 'email', 'password'],
+                properties: [
+                    new OA\Property(property: 'name', type: 'string', example: 'Budi'),
+                    new OA\Property(property: 'email', type: 'string', format: 'email', example: 'budi@example.com'),
+                    new OA\Property(property: 'password', type: 'string', format: 'password', example: 'password'),
+                    new OA\Property(property: 'password_confirmation', type: 'string', format: 'password', example: 'password'),
+                    new OA\Property(property: 'role_id', type: 'integer', nullable: true, example: 2),
+                ],
+            ),
+        ),
+        responses: [
+            new OA\Response(
+                response: 201,
+                description: 'User berhasil dibuat',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'user', ref: '#/components/schemas/User'),
+                        new OA\Property(property: 'token', type: 'string', example: '2|xyz789uvw'),
+                    ],
+                ),
+            ),
+            new OA\Response(response: 401, description: 'Tidak terautentikasi'),
+            new OA\Response(response: 422, description: 'Validasi gagal'),
+        ],
+    )]
     public function register(Request $request)
     {
         $request->validate([

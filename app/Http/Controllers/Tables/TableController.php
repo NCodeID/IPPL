@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use OpenApi\Attributes as OA;
 
 class TableController extends Controller
 {
@@ -15,6 +16,58 @@ class TableController extends Controller
 
     private const MAX_PER_PAGE = 100;
 
+    #[OA\Get(
+        path: '/api/tables',
+        operationId: 'tableIndex',
+        summary: 'Menampilkan daftar meja',
+        description: 'Mengambil daftar meja aktif beserta order aktif-nya. Mendukung pencarian nomor, filter status, dan pagination.',
+        tags: ['Tables'],
+        security: [['sanctum' => []]],
+        parameters: [
+            new OA\QueryParameter(
+                name: 'page',
+                description: 'Nomor halaman',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1),
+            ),
+            new OA\QueryParameter(
+                name: 'per_page',
+                description: 'Jumlah data per halaman (default: 15, max: 100)',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100),
+            ),
+            new OA\QueryParameter(
+                name: 'search',
+                description: 'Pencarian berdasarkan nomor meja',
+                required: false,
+                schema: new OA\Schema(type: 'string'),
+            ),
+            new OA\QueryParameter(
+                name: 'status',
+                description: 'Filter status meja',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['processing', 'occupied', 'available']),
+            ),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Daftar meja',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(
+                            property: 'data',
+                            type: 'array',
+                            items: new OA\Items(ref: '#/components/schemas/Table'),
+                        ),
+                    ],
+                ),
+            ),
+            new OA\Response(response: 401, description: 'Tidak terautentikasi'),
+            new OA\Response(response: 403, description: 'Tidak memiliki permission view_tables'),
+            new OA\Response(response: 422, description: 'Validasi gagal'),
+        ],
+    )]
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -65,6 +118,30 @@ class TableController extends Controller
         ]);
     }
 
+    #[OA\Get(
+        path: '/api/tables/summary',
+        operationId: 'tableSummary',
+        summary: 'Ringkasan status meja',
+        description: 'Mengambil ringkasan jumlah total meja, meja terisi, meja tersedia, dan isu integritas data.',
+        tags: ['Tables'],
+        security: [['sanctum' => []]],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Ringkasan status meja',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(property: 'total_tables', type: 'integer', example: 10),
+                        new OA\Property(property: 'occupied_tables', type: 'integer', example: 3),
+                        new OA\Property(property: 'available_tables', type: 'integer', example: 7),
+                        new OA\Property(property: 'data_integrity_issues', type: 'integer', example: 0),
+                    ],
+                ),
+            ),
+            new OA\Response(response: 401, description: 'Tidak terautentikasi'),
+            new OA\Response(response: 403, description: 'Tidak memiliki permission view_tables'),
+        ],
+    )]
     public function summary(): JsonResponse
     {
         $tables = Table::query()
