@@ -10,12 +10,12 @@ uses(RefreshDatabase::class);
 
 /**
  * Tujuan: Menyediakan helper untuk membuat meja aktif pada pengujian relasi.
- * Skenario: Dipanggil dengan nomor meja.
- * Hasil yang diharapkan: Mengembalikan instance Table aktif yang tersimpan dengan nomor sesuai argumen.
+ * Skenario: Dipanggil dengan nomor meja dan kapasitas opsional.
+ * Hasil yang diharapkan: Mengembalikan instance Table aktif yang tersimpan dengan nomor dan capacity sesuai argumen.
  */
-function makeTable(int $number): Table
+function makeTable(int $number, int $capacity = 4): Table
 {
-    return Table::create(['number' => $number, 'is_active' => true]);
+    return Table::create(['number' => $number, 'is_active' => true, 'capacity' => $capacity]);
 }
 
 /**
@@ -44,6 +44,7 @@ function makeOrder(Table $table, User $runner, string $status, string $number): 
         'order_number' => $number,
         'runner_id' => $runner->id,
         'table_id' => $table->id,
+        'customer_name' => 'Pelanggan',
         'status' => $status,
     ]);
 }
@@ -121,4 +122,28 @@ test('eager loading active orders avoids n plus one queries', function () {
 
     expect($activeCount)->toBe(5)
         ->and($queryCount)->toBe(2);
+});
+
+/**
+ * Tujuan: Menguji scope keterisian meja yang menjadi acuan filter dan ringkasan.
+ * Skenario: Terdapat meja tanpa order, meja ber-order pending, meja ber-order served, meja ber-order completed, dan meja ber-order cancelled.
+ * Hasil yang diharapkan: Scope occupied hanya mengembalikan meja pending dan served, sedangkan scope available mengembalikan meja tanpa order, completed, dan cancelled.
+ */
+test('occupied and available scopes share one filling rule', function () {
+    $runner = makeRunner();
+    $empty = makeTable(1);
+    $pending = makeTable(2);
+    $served = makeTable(3);
+    $completed = makeTable(4);
+    $cancelled = makeTable(5);
+
+    makeOrder($pending, $runner, Order::STATUS_PENDING, 'ORD-1');
+    makeOrder($served, $runner, Order::STATUS_SERVED, 'ORD-2');
+    makeOrder($completed, $runner, Order::STATUS_COMPLETED, 'ORD-3');
+    makeOrder($cancelled, $runner, Order::STATUS_CANCELLED, 'ORD-4');
+
+    expect(Table::occupied()->orderBy('number')->pluck('id')->all())
+        ->toBe([$pending->id, $served->id])
+        ->and(Table::available()->orderBy('number')->pluck('id')->all())
+        ->toBe([$empty->id, $completed->id, $cancelled->id]);
 });

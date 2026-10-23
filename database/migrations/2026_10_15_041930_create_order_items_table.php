@@ -15,7 +15,6 @@ return new class extends Migration
             $table->bigInteger('unit_price')->unsigned();
             $table->unsignedInteger('quantity')->default(1);
             $table->bigInteger('subtotal')->unsigned()->storedAs('unit_price * quantity');
-            $table->text('note')->nullable();
             $table->timestamps();
         });
     }

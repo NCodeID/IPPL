@@ -41,12 +41,12 @@ function rbacUser(string $roleName, string $email): User
 
 /**
  * Tujuan: Menyediakan helper untuk membuat data meja pada pengujian akses dan konsistensi.
- * Skenario: Dipanggil dengan nomor meja dan status keaktifan opsional.
- * Hasil yang diharapkan: Mengembalikan instance Table yang tersimpan dengan nomor dan is_active sesuai argumen.
+ * Skenario: Dipanggil dengan nomor meja, status keaktifan, dan kapasitas opsional.
+ * Hasil yang diharapkan: Mengembalikan instance Table yang tersimpan dengan nomor, is_active, dan capacity sesuai argumen.
  */
-function rbacTable(int $number, bool $isActive = true): Table
+function rbacTable(int $number, bool $isActive = true, int $capacity = 4): Table
 {
-    return Table::create(['number' => $number, 'is_active' => $isActive]);
+    return Table::create(['number' => $number, 'is_active' => $isActive, 'capacity' => $capacity]);
 }
 
 /**
@@ -60,6 +60,7 @@ function rbacOrder(Table $table, User $runner, string $status, string $number): 
         'order_number' => $number,
         'runner_id' => $runner->id,
         'table_id' => $table->id,
+        'customer_name' => 'Pelanggan',
         'status' => $status,
     ]);
 }
@@ -204,7 +205,7 @@ test('re-running the seeder keeps role permission sets stable', function () {
 /**
  * Tujuan: Menguji konsistensi ringkasan dengan status pada endpoint daftar meja.
  * Skenario: Terdapat meja dengan order pending, cooking, ready, served, completed, dan cancelled, satu meja tanpa order, serta satu meja nonaktif ber-order pending.
- * Hasil yang diharapkan: total_tables sama dengan jumlah data daftar, occupied_tables sama dengan jumlah meja processing/occupied, available_tables sama dengan jumlah meja available, dan invarian jumlah meja terpenuhi dengan nilai 7, 4, dan 3.
+ * Hasil yang diharapkan: total_tables sama dengan jumlah data daftar, occupied_tables sama dengan jumlah meja processing/occupied, available_tables sama dengan jumlah meja available, filter occupied/available sama dengan ringkasan, dan invarian jumlah meja terpenuhi dengan nilai 7, 4, dan 3.
  */
 test('summary counts agree with the statuses returned by the list endpoint', function () {
     rbacSeedRolesAndPermissions();
@@ -237,6 +238,16 @@ test('summary counts agree with the statuses returned by the list endpoint', fun
         ->assertOk()
         ->json();
 
+    $occupiedList = $this->actingAs($user, 'sanctum')
+        ->getJson('/api/tables?status=occupied&per_page=100')
+        ->assertOk()
+        ->json();
+
+    $availableList = $this->actingAs($user, 'sanctum')
+        ->getJson('/api/tables?status=available&per_page=100')
+        ->assertOk()
+        ->json();
+
     $statuses = collect($list['data'])->pluck('status');
 
     expect($summary['total_tables'])->toBe(count($list['data']))
@@ -247,6 +258,8 @@ test('summary counts agree with the statuses returned by the list endpoint', fun
             fn (string $status): bool => $status === 'available',
         )->count())
         ->and($summary['total_tables'])->toBe($summary['occupied_tables'] + $summary['available_tables'])
+        ->and($occupiedList['meta']['total'])->toBe($summary['occupied_tables'])
+        ->and($availableList['meta']['total'])->toBe($summary['available_tables'])
         ->and($summary['total_tables'])->toBe(7)
         ->and($summary['occupied_tables'])->toBe(4)
         ->and($summary['available_tables'])->toBe(3);

@@ -41,5 +41,6 @@ Route::middleware(['auth:sanctum', 'active', 'permission:view_tables'])->group(
     function () {
         Route::get('/tables/summary', [TableController::class, 'summary']);
         Route::get('/tables', [TableController::class, 'index']);
+        Route::get('/tables/{table}', [TableController::class, 'show']);
     },
 );

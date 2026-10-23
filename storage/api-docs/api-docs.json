@@ -605,7 +605,7 @@
                     {
                         "name": "status",
                         "in": "query",
-                        "description": "Filter status meja",
+                        "description": "Filter status meja: processing untuk order aktif berstatus pending/cooking/ready, occupied untuk semua meja yang memiliki order aktif, available untuk meja tanpa order aktif",
                         "required": false,
                         "schema": {
                             "type": "string",
@@ -644,6 +644,53 @@
                     },
                     "422": {
                         "description": "Validasi gagal"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/tables/{table}": {
+            "get": {
+                "tags": [
+                    "Tables"
+                ],
+                "summary": "Menampilkan detail meja",
+                "description": "Mengambil detail satu meja aktif beserta order aktif-nya, termasuk catatan order.",
+                "operationId": "tableShow",
+                "parameters": [
+                    {
+                        "name": "table",
+                        "in": "path",
+                        "description": "ID meja",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Detail meja",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Table"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Tidak terautentikasi"
+                    },
+                    "403": {
+                        "description": "Tidak memiliki permission view_tables"
+                    },
+                    "404": {
+                        "description": "Meja tidak ditemukan atau tidak aktif"
                     }
                 },
                 "security": [
@@ -768,6 +815,11 @@
                     "number": {
                         "type": "integer"
                     },
+                    "capacity": {
+                        "type": "integer",
+                        "example": 4,
+                        "minimum": 1
+                    },
                     "status": {
                         "type": "string",
                         "enum": [
@@ -776,18 +828,47 @@
                             "available"
                         ]
                     },
-                    "is_active": {
+                    "display_status": {
+                        "type": "string",
+                        "enum": [
+                            "available",
+                            "occupied"
+                        ]
+                    },
+                    "customer_name": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "order": {
+                        "properties": {
+                            "id": {
+                                "type": "integer"
+                            },
+                            "order_number": {
+                                "type": "string"
+                            },
+                            "customer_name": {
+                                "type": "string"
+                            },
+                            "order_type": {
+                                "type": "string"
+                            },
+                            "order_status": {
+                                "type": "string"
+                            },
+                            "note": {
+                                "type": "string",
+                                "nullable": true
+                            }
+                        },
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "active_orders_count": {
+                        "type": "integer"
+                    },
+                    "has_data_integrity_issue": {
                         "type": "boolean"
-                    },
-                    "created_at": {
-                        "type": "string",
-                        "format": "date-time",
-                        "nullable": true
-                    },
-                    "updated_at": {
-                        "type": "string",
-                        "format": "date-time",
-                        "nullable": true
                     }
                 },
                 "type": "object"

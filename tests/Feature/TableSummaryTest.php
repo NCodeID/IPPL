@@ -11,12 +11,12 @@ uses(RefreshDatabase::class);
 
 /**
  * Tujuan: Menyediakan helper untuk membuat data meja pada pengujian ringkasan.
- * Skenario: Dipanggil dengan nomor meja dan status keaktifan opsional.
- * Hasil yang diharapkan: Mengembalikan instance Table yang tersimpan dengan nomor dan is_active sesuai argumen.
+ * Skenario: Dipanggil dengan nomor meja, status keaktifan, dan kapasitas opsional.
+ * Hasil yang diharapkan: Mengembalikan instance Table yang tersimpan dengan nomor, is_active, dan capacity sesuai argumen.
  */
-function summaryTable(int $number, bool $isActive = true): Table
+function summaryTable(int $number, bool $isActive = true, int $capacity = 4): Table
 {
-    return Table::create(['number' => $number, 'is_active' => $isActive]);
+    return Table::create(['number' => $number, 'is_active' => $isActive, 'capacity' => $capacity]);
 }
 
 /**
@@ -50,6 +50,7 @@ function summaryOrder(Table $table, User $runner, string $status, string $number
         'order_number' => $number,
         'runner_id' => $runner->id,
         'table_id' => $table->id,
+        'customer_name' => 'Pelanggan',
         'status' => $status,
     ]);
 }

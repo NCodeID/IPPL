@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,13 +17,25 @@ use OpenApi\Attributes as OA;
     properties: [
         new OA\Property(property: 'id', type: 'integer'),
         new OA\Property(property: 'number', type: 'integer'),
-        new OA\Property(property: 'capacity', type: 'integer', nullable: true),
+        new OA\Property(property: 'capacity', type: 'integer', minimum: 1, example: 4),
         new OA\Property(property: 'status', type: 'string', enum: ['processing', 'occupied', 'available']),
         new OA\Property(property: 'display_status', type: 'string', enum: ['available', 'occupied']),
         new OA\Property(property: 'customer_name', type: 'string', nullable: true),
-        new OA\Property(property: 'is_active', type: 'boolean'),
-        new OA\Property(property: 'created_at', type: 'string', format: 'date-time', nullable: true),
-        new OA\Property(property: 'updated_at', type: 'string', format: 'date-time', nullable: true),
+        new OA\Property(
+            property: 'order',
+            type: 'object',
+            nullable: true,
+            properties: [
+                new OA\Property(property: 'id', type: 'integer'),
+                new OA\Property(property: 'order_number', type: 'string'),
+                new OA\Property(property: 'customer_name', type: 'string'),
+                new OA\Property(property: 'order_type', type: 'string'),
+                new OA\Property(property: 'order_status', type: 'string'),
+                new OA\Property(property: 'note', type: 'string', nullable: true),
+            ],
+        ),
+        new OA\Property(property: 'active_orders_count', type: 'integer'),
+        new OA\Property(property: 'has_data_integrity_issue', type: 'boolean'),
     ],
 )]
 class Table extends Model
@@ -49,6 +62,16 @@ class Table extends Model
     public function activeOrders(): HasMany
     {
         return $this->hasMany(Order::class, 'table_id')->active();
+    }
+
+    public function scopeOccupied(Builder $query): Builder
+    {
+        return $query->whereHas('activeOrders');
+    }
+
+    public function scopeAvailable(Builder $query): Builder
+    {
+        return $query->whereDoesntHave('activeOrders');
     }
 
     public function activeOrder(): ?Order
@@ -96,9 +119,9 @@ class Table extends Model
     protected static function booted(): void
     {
         static::saving(function (Table $table): void {
-            if ($table->capacity !== null && $table->capacity <= 0) {
+            if ($table->capacity === null || $table->capacity <= 0) {
                 throw ValidationException::withMessages([
-                    'capacity' => 'Kapasitas meja harus lebih besar dari nol.',
+                    'capacity' => 'Kapasitas meja wajib diisi dan harus lebih besar dari nol.',
                 ]);
             }
         });

@@ -184,12 +184,16 @@ class DatabaseSeeder extends Seeder
         $capacities = [
             1 => 2,
             2 => 4,
+            3 => 4,
+            4 => 2,
+            5 => 2,
+            6 => 8,
         ];
 
         for ($i = 1; $i <= 6; $i++) {
             TableModel::firstOrCreate(
                 ['number' => $i],
-                ['number' => $i, 'capacity' => $capacities[$i] ?? null, 'is_active' => true],
+                ['number' => $i, 'capacity' => $capacities[$i], 'is_active' => true],
             );
         }
 

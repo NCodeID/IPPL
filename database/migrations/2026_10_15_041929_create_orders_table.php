@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -14,10 +15,11 @@ return new class extends Migration
             $table->foreignId('runner_id')->constrained('users')->cascadeOnDelete();
             $table->foreignId('chef_id')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('table_id')->nullable()->constrained('tables')->nullOnDelete();
-            $table->string('customer_name')->nullable();
+            $table->string('customer_name');
             $table->enum('order_type', ['dine_in', 'takeaway'])->default('dine_in');
             $table->enum('status', ['pending', 'cooking', 'ready', 'served', 'completed', 'cancelled'])->default('pending');
             $table->text('cancellation_reason')->nullable();
+            $table->text('note')->nullable();
             $table->bigInteger('subtotal')->unsigned()->default(0);
             $table->bigInteger('discount')->unsigned()->default(0);
             $table->bigInteger('tax')->unsigned()->default(0);

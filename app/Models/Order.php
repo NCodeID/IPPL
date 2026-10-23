@@ -9,8 +9,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Validation\ValidationException;
 
-#[Fillable(['order_number', 'runner_id', 'chef_id', 'table_id', 'customer_name', 'order_type', 'status', 'cancellation_reason', 'subtotal', 'discount', 'tax', 'total', 'completed_at'])]
+#[Fillable(['order_number', 'runner_id', 'chef_id', 'table_id', 'customer_name', 'order_type', 'status', 'cancellation_reason', 'note', 'subtotal', 'discount', 'tax', 'total', 'completed_at'])]
 class Order extends Model
 {
     use HasFactory;
@@ -62,6 +63,19 @@ class Order extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->whereIn('status', self::ACTIVE_STATUSES);
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (Order $order): void {
+            $order->customer_name = trim((string) $order->customer_name);
+
+            if ($order->customer_name === '') {
+                throw ValidationException::withMessages([
+                    'customer_name' => 'Nama pelanggan wajib diisi.',
+                ]);
+            }
+        });
     }
 
     protected function casts(): array

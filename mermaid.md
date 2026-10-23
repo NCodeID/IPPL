@@ -55,6 +55,7 @@ erDiagram
         string order_type
         string status
         text cancellation_reason
+        text note
         bigint subtotal
         bigint discount
         bigint tax
@@ -71,7 +72,6 @@ erDiagram
         bigint unit_price
         int quantity
         bigint subtotal
-        string note
         datetime created_at
         datetime updated_at
     }

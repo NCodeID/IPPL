@@ -44,7 +44,7 @@ class TableController extends Controller
             ),
             new OA\QueryParameter(
                 name: 'status',
-                description: 'Filter status meja',
+                description: 'Filter status meja: processing untuk order aktif berstatus pending/cooking/ready, occupied untuk semua meja yang memiliki order aktif, available untuk meja tanpa order aktif',
                 required: false,
                 schema: new OA\Schema(type: 'string', enum: ['processing', 'occupied', 'available']),
             ),
@@ -119,6 +119,41 @@ class TableController extends Controller
     }
 
     #[OA\Get(
+        path: '/api/tables/{table}',
+        operationId: 'tableShow',
+        summary: 'Menampilkan detail meja',
+        description: 'Mengambil detail satu meja aktif beserta order aktif-nya, termasuk catatan order.',
+        tags: ['Tables'],
+        security: [['sanctum' => []]],
+        parameters: [
+            new OA\PathParameter(
+                name: 'table',
+                description: 'ID meja',
+                required: true,
+                schema: new OA\Schema(type: 'integer'),
+            ),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Detail meja',
+                content: new OA\JsonContent(ref: '#/components/schemas/Table'),
+            ),
+            new OA\Response(response: 401, description: 'Tidak terautentikasi'),
+            new OA\Response(response: 403, description: 'Tidak memiliki permission view_tables'),
+            new OA\Response(response: 404, description: 'Meja tidak ditemukan atau tidak aktif'),
+        ],
+    )]
+    public function show(Table $table): JsonResponse
+    {
+        abort_unless($table->is_active, 404);
+
+        $table->load('activeOrders');
+
+        return response()->json($this->transformTable($table));
+    }
+
+    #[OA\Get(
         path: '/api/tables/summary',
         operationId: 'tableSummary',
         summary: 'Ringkasan status meja',
@@ -144,23 +179,16 @@ class TableController extends Controller
     )]
     public function summary(): JsonResponse
     {
-        $tables = Table::query()
-            ->where('is_active', true)
-            ->with('activeOrders')
-            ->orderBy('number')
-            ->get();
+        $tables = Table::query()->where('is_active', true);
 
-        $occupied = $tables->filter(
-            fn (Table $table): bool => $table->activeOrders->isNotEmpty(),
-        )->count();
+        $total = (clone $tables)->count();
+        $occupied = (clone $tables)->occupied()->count();
 
         return response()->json([
-            'total_tables' => $tables->count(),
+            'total_tables' => $total,
             'occupied_tables' => $occupied,
-            'available_tables' => $tables->count() - $occupied,
-            'data_integrity_issues' => $tables->filter(
-                fn (Table $table): bool => $table->activeOrders->count() > 1,
-            )->count(),
+            'available_tables' => $total - $occupied,
+            'data_integrity_issues' => (clone $tables)->has('activeOrders', '>', 1)->count(),
         ]);
     }
 
@@ -171,13 +199,8 @@ class TableController extends Controller
                 'activeOrders',
                 fn (Builder $orderQuery): Builder => $orderQuery->whereIn('status', Table::PROCESSING_ORDER_STATUSES),
             ),
-            Table::STATUS_OCCUPIED => $query
-                ->whereHas('activeOrders')
-                ->whereDoesntHave(
-                    'activeOrders',
-                    fn (Builder $orderQuery): Builder => $orderQuery->whereIn('status', Table::PROCESSING_ORDER_STATUSES),
-                ),
-            Table::STATUS_AVAILABLE => $query->whereDoesntHave('activeOrders'),
+            Table::STATUS_OCCUPIED => $query->occupied(),
+            Table::STATUS_AVAILABLE => $query->available(),
         };
     }
 
@@ -191,7 +214,7 @@ class TableController extends Controller
             'number' => $table->number,
             'capacity' => $table->capacity,
             'status' => $table->status,
-            'display_status' => $customerName === null ? Table::STATUS_AVAILABLE : Table::STATUS_OCCUPIED,
+            'display_status' => $order === null ? Table::STATUS_AVAILABLE : Table::STATUS_OCCUPIED,
             'customer_name' => $customerName,
             'order' => $order === null ? null : [
                 'id' => $order->id,
@@ -199,6 +222,7 @@ class TableController extends Controller
                 'customer_name' => $order->customer_name,
                 'order_type' => $order->order_type,
                 'order_status' => $order->status,
+                'note' => $order->note,
             ],
             'active_orders_count' => $table->activeOrders->count(),
             'has_data_integrity_issue' => $table->has_data_integrity_issue,

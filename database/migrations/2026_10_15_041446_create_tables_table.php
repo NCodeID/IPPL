@@ -12,14 +12,10 @@ return new class extends Migration
         Schema::create('tables', function (Blueprint $table) {
             $table->id();
             $table->unsignedInteger('number')->unique();
-            $table->unsignedInteger('capacity')->nullable();
+            $table->unsignedInteger('capacity');
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
-
-        if (DB::getDriverName() === 'mysql') {
-            DB::statement('ALTER TABLE `tables` ADD CONSTRAINT `tables_capacity_positive` CHECK (`capacity` IS NULL OR `capacity` > 0)');
-        }
     }
 
     public function down(): void
