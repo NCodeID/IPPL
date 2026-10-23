@@ -181,8 +181,20 @@ class DatabaseSeeder extends Seeder
 
     private function seedTablesAndPaymentMethods(): void
     {
+        $capacities = [
+            1 => 2,
+            2 => 4,
+        ];
+
         for ($i = 1; $i <= 6; $i++) {
-            TableModel::firstOrCreate(['number' => $i], ['number' => $i, 'is_active' => true]);
+            TableModel::firstOrCreate(
+                ['number' => $i],
+                ['number' => $i, 'capacity' => $capacities[$i] ?? null, 'is_active' => true],
+            );
+        }
+
+        foreach ($capacities as $number => $capacity) {
+            TableModel::where('number', $number)->update(['capacity' => $capacity]);
         }
 
         $paymentMethods = [

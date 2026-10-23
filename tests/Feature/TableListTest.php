@@ -5,18 +5,20 @@ use App\Models\Permission;
 use App\Models\Role;
 use App\Models\Table;
 use App\Models\User;
+use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Validation\ValidationException;
 
 uses(RefreshDatabase::class);
 
 /**
  * Tujuan: Menyediakan helper untuk membuat data meja pada pengujian daftar meja.
- * Skenario: Dipanggil dengan nomor meja dan status keaktifan opsional.
- * Hasil yang diharapkan: Mengembalikan instance Table yang tersimpan dengan nomor dan is_active sesuai argumen.
+ * Skenario: Dipanggil dengan nomor meja, status keaktifan, dan kapasitas opsional.
+ * Hasil yang diharapkan: Mengembalikan instance Table yang tersimpan dengan nomor, is_active, dan capacity sesuai argumen.
  */
-function listTable(int $number, bool $isActive = true): Table
+function listTable(int $number, bool $isActive = true, ?int $capacity = null): Table
 {
-    return Table::create(['number' => $number, 'is_active' => $isActive]);
+    return Table::create(['number' => $number, 'is_active' => $isActive, 'capacity' => $capacity]);
 }
 
 /**
@@ -49,7 +51,7 @@ function listOrder(
     User $runner,
     string $status,
     string $number,
-    string $customer = 'Pelanggan',
+    ?string $customer = 'Pelanggan',
     string $type = 'dine_in',
 ): Order {
     return Order::create([
@@ -60,6 +62,18 @@ function listOrder(
         'order_type' => $type,
         'status' => $status,
     ]);
+}
+
+/**
+ * Tujuan: Menjalankan seeder data meja secara terisolasi pada pengujian kapasitas.
+ * Skenario: Memanggil metode privat seedTablesAndPaymentMethods milik DatabaseSeeder.
+ * Hasil yang diharapkan: Data meja dan metode pembayaran terisi tanpa ikut membuat data role atau pengguna.
+ */
+function runTableSeeder(): void
+{
+    $method = new ReflectionMethod(DatabaseSeeder::class, 'seedTablesAndPaymentMethods');
+    $method->setAccessible(true);
+    $method->invoke(new DatabaseSeeder);
 }
 
 /**
@@ -290,9 +304,90 @@ test('tables endpoint returns order details only when an active order exists', f
         ->assertJsonPath('data.1.order.order_status', 'pending')
         ->assertJsonStructure([
             'data' => [
-                '*' => ['id', 'number', 'status', 'order', 'active_orders_count', 'has_data_integrity_issue'],
+                '*' => ['id', 'number', 'capacity', 'status', 'display_status', 'customer_name', 'order', 'active_orders_count', 'has_data_integrity_issue'],
             ],
         ]);
+});
+
+/**
+ * Tujuan: Menguji penyertaan kapasitas, status tampilan, dan nama customer pada daftar meja.
+ * Skenario: Terdapat meja tanpa customer berkapasitas 2 kursi dan meja ber-order pending pelanggan Budi berkapasitas 4 kursi.
+ * Hasil yang diharapkan: Meja tanpa customer mengirim capacity 2, display_status available, dan customer_name null; meja ber-customer mengirim capacity 4, display_status occupied, customer_name Budi, serta status internal tetap processing.
+ */
+test('tables endpoint exposes capacity display status and customer name', function () {
+    $user = listViewer();
+    listTable(1, true, 2);
+    $busy = listTable(2, true, 4);
+    listOrder($busy, $user, Order::STATUS_PENDING, 'ORD-1', 'Budi');
+
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/tables')
+        ->assertOk()
+        ->assertJsonPath('data.0.capacity', 2)
+        ->assertJsonPath('data.0.display_status', 'available')
+        ->assertJsonPath('data.0.customer_name', null)
+        ->assertJsonPath('data.1.capacity', 4)
+        ->assertJsonPath('data.1.display_status', 'occupied')
+        ->assertJsonPath('data.1.customer_name', 'Budi')
+        ->assertJsonPath('data.1.status', 'processing');
+});
+
+/**
+ * Tujuan: Memastikan order selesai atau dibatalkan tidak menampilkan nama customer lama.
+ * Skenario: Dua meja masing-masing memiliki order completed dan cancelled atas nama Lama.
+ * Hasil yang diharapkan: Kedua meja mengirim display_status available dan customer_name null.
+ */
+test('tables endpoint ignores customer names from completed and cancelled orders', function () {
+    $user = listViewer();
+    $completed = listTable(1);
+    $cancelled = listTable(2);
+    listOrder($completed, $user, Order::STATUS_COMPLETED, 'ORD-1', 'Lama');
+    listOrder($cancelled, $user, Order::STATUS_CANCELLED, 'ORD-2', 'Lama');
+
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/tables')
+        ->assertOk()
+        ->assertJsonPath('data.0.display_status', 'available')
+        ->assertJsonPath('data.0.customer_name', null)
+        ->assertJsonPath('data.1.display_status', 'available')
+        ->assertJsonPath('data.1.customer_name', null);
+});
+
+/**
+ * Tujuan: Menguji order aktif yang tidak memiliki nama customer.
+ * Skenario: Sebuah meja memiliki order pending dengan customer_name null.
+ * Hasil yang diharapkan: Meja dianggap tanpa customer sehingga display_status available dan customer_name null.
+ */
+test('tables endpoint treats an active order without a customer name as available', function () {
+    $user = listViewer();
+    $table = listTable(1);
+    listOrder($table, $user, Order::STATUS_PENDING, 'ORD-1', null);
+
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/tables')
+        ->assertOk()
+        ->assertJsonPath('data.0.display_status', 'available')
+        ->assertJsonPath('data.0.customer_name', null)
+        ->assertJsonPath('data.0.order.customer_name', null);
+});
+
+/**
+ * Tujuan: Memastikan nama customer mengikuti prioritas order aktif yang sudah berlaku.
+ * Skenario: Sebuah meja memiliki order served atas nama Lama dan order pending atas nama Baru.
+ * Hasil yang diharapkan: Order pending dipilih sehingga display_status occupied dan customer_name Baru.
+ */
+test('tables endpoint keeps the existing active order priority for customer names', function () {
+    $user = listViewer();
+    $table = listTable(1);
+    listOrder($table, $user, Order::STATUS_SERVED, 'ORD-1', 'Lama');
+    listOrder($table, $user, Order::STATUS_PENDING, 'ORD-2', 'Baru');
+
+    $this->actingAs($user, 'sanctum')
+        ->getJson('/api/tables')
+        ->assertOk()
+        ->assertJsonPath('data.0.display_status', 'occupied')
+        ->assertJsonPath('data.0.customer_name', 'Baru')
+        ->assertJsonPath('data.0.order.customer_name', 'Baru');
 });
 
 /**
@@ -337,4 +432,49 @@ test('tables endpoint combines search status and pagination', function () {
         ->assertJsonPath('meta.total', 1)
         ->assertJsonPath('meta.last_page', 1)
         ->assertJsonPath('data.0.number', 12);
+});
+
+/**
+ * Tujuan: Menguji kapasitas meja hasil seeder dan idempotensinya.
+ * Skenario: DatabaseSeeder dijalankan dua kali berturut-turut.
+ * Hasil yang diharapkan: Tetap ada 6 meja tanpa duplikat, meja 1 berkapasitas 2, meja 2 berkapasitas 4, dan meja 3-6 tidak memiliki kapasitas.
+ */
+test('table seeder assigns confirmed capacities and stays idempotent', function () {
+    runTableSeeder();
+    runTableSeeder();
+
+    expect(Table::count())->toBe(6)
+        ->and(Table::where('number', 1)->value('capacity'))->toBe(2)
+        ->and(Table::where('number', 2)->value('capacity'))->toBe(4)
+        ->and(Table::whereIn('number', [3, 4, 5, 6])->whereNotNull('capacity')->count())->toBe(0);
+});
+
+/**
+ * Tujuan: Memastikan seeder memperbarui kapasitas pada meja yang sudah ada.
+ * Skenario: Meja 1 dan 2 sudah ada tanpa kapasitas, meja 3 sudah memiliki kapasitas manual 5, lalu DatabaseSeeder dijalankan.
+ * Hasil yang diharapkan: Meja 1 menjadi 2 kursi, meja 2 menjadi 4 kursi, meja 3 tetap 5 kursi, dan total meja menjadi 6.
+ */
+test('table seeder updates existing capacities without overwriting unconfirmed values', function () {
+    listTable(1);
+    listTable(2);
+    listTable(3, true, 5);
+
+    runTableSeeder();
+
+    expect(Table::where('number', 1)->value('capacity'))->toBe(2)
+        ->and(Table::where('number', 2)->value('capacity'))->toBe(4)
+        ->and(Table::where('number', 3)->value('capacity'))->toBe(5)
+        ->and(Table::count())->toBe(6);
+});
+
+/**
+ * Tujuan: Menguji penolakan kapasitas nol atau negatif pada jalur penulisan meja.
+ * Skenario: Mencoba membuat meja baru dengan capacity 0 dan capacity -1 melalui model Table.
+ * Hasil yang diharapkan: Kedua percobaan menghasilkan ValidationException dan tidak ada meja yang tersimpan.
+ */
+test('table capacity must be greater than zero', function () {
+    expect(fn () => listTable(1, true, 0))->toThrow(ValidationException::class);
+    expect(fn () => listTable(2, true, -1))->toThrow(ValidationException::class);
+
+    expect(Table::count())->toBe(0);
 });

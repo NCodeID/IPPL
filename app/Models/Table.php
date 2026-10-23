@@ -7,15 +7,19 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Validation\ValidationException;
 use OpenApi\Attributes as OA;
 
-#[Fillable(['number', 'is_active'])]
+#[Fillable(['number', 'capacity', 'is_active'])]
 #[OA\Schema(
     schema: 'Table',
     properties: [
         new OA\Property(property: 'id', type: 'integer'),
         new OA\Property(property: 'number', type: 'integer'),
+        new OA\Property(property: 'capacity', type: 'integer', nullable: true),
         new OA\Property(property: 'status', type: 'string', enum: ['processing', 'occupied', 'available']),
+        new OA\Property(property: 'display_status', type: 'string', enum: ['available', 'occupied']),
+        new OA\Property(property: 'customer_name', type: 'string', nullable: true),
         new OA\Property(property: 'is_active', type: 'boolean'),
         new OA\Property(property: 'created_at', type: 'string', format: 'date-time', nullable: true),
         new OA\Property(property: 'updated_at', type: 'string', format: 'date-time', nullable: true),
@@ -89,10 +93,22 @@ class Table extends Model
         return self::STATUS_AVAILABLE;
     }
 
+    protected static function booted(): void
+    {
+        static::saving(function (Table $table): void {
+            if ($table->capacity !== null && $table->capacity <= 0) {
+                throw ValidationException::withMessages([
+                    'capacity' => 'Kapasitas meja harus lebih besar dari nol.',
+                ]);
+            }
+        });
+    }
+
     protected function casts(): array
     {
         return [
             'number' => 'integer',
+            'capacity' => 'integer',
             'is_active' => 'boolean',
         ];
     }

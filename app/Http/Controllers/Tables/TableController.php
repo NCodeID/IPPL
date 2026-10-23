@@ -184,11 +184,15 @@ class TableController extends Controller
     private function transformTable(Table $table): array
     {
         $order = $table->activeOrder();
+        $customerName = filled($order?->customer_name) ? $order->customer_name : null;
 
         return [
             'id' => $table->id,
             'number' => $table->number,
+            'capacity' => $table->capacity,
             'status' => $table->status,
+            'display_status' => $customerName === null ? Table::STATUS_AVAILABLE : Table::STATUS_OCCUPIED,
+            'customer_name' => $customerName,
             'order' => $order === null ? null : [
                 'id' => $order->id,
                 'order_number' => $order->order_number,

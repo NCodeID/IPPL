@@ -117,6 +117,7 @@ erDiagram
     RESTAURANT_TABLE {
         int id PK
         string number
+        int capacity
         boolean is_active
         datetime created_at
         datetime updated_at
