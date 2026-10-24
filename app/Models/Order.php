@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Validation\ValidationException;
 
-#[Fillable(['order_number', 'runner_id', 'chef_id', 'table_id', 'customer_name', 'order_type', 'status', 'cancellation_reason', 'note', 'subtotal', 'discount', 'tax', 'total', 'completed_at'])]
+#[Fillable(['order_number', 'runner_id', 'chef_id', 'table_id', 'customer_name', 'order_type', 'status', 'cancellation_reason', 'note', 'subtotal', 'discount', 'tax', 'completed_at'])]
 class Order extends Model
 {
     use HasFactory;

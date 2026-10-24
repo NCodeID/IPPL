@@ -3,6 +3,9 @@
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Catalog\CategoryController;
+use App\Http\Controllers\Catalog\ProductController;
+use App\Http\Controllers\Orders\OrderController;
 use App\Http\Controllers\Rbac\PermissionController;
 use App\Http\Controllers\Rbac\RoleController;
 use App\Http\Controllers\Tables\TableController;
@@ -42,5 +45,13 @@ Route::middleware(['auth:sanctum', 'active', 'permission:view_tables'])->group(
         Route::get('/tables/summary', [TableController::class, 'summary']);
         Route::get('/tables', [TableController::class, 'index']);
         Route::get('/tables/{table}', [TableController::class, 'show']);
+    },
+);
+
+Route::middleware(['auth:sanctum', 'active', 'permission:manage_orders'])->group(
+    function () {
+        Route::get('/categories', [CategoryController::class, 'index']);
+        Route::get('/products', [ProductController::class, 'index']);
+        Route::post('/orders', [OrderController::class, 'store']);
     },
 );

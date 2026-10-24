@@ -7,7 +7,7 @@
     },
     "servers": [
         {
-            "url": "http://localhost:8000",
+            "url": "http://my-default-host.com",
             "description": "IMPAL API Server"
         }
     ],
@@ -182,6 +182,401 @@
                     },
                     "422": {
                         "description": "Validasi gagal"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/categories": {
+            "get": {
+                "tags": [
+                    "Catalog"
+                ],
+                "summary": "Menampilkan kategori aktif",
+                "description": "Mengambil daftar kategori aktif untuk filter menu pada halaman pembuatan order.",
+                "operationId": "categoryIndex",
+                "responses": {
+                    "200": {
+                        "description": "Daftar kategori aktif",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Tidak terautentikasi"
+                    },
+                    "403": {
+                        "description": "Tidak memiliki permission manage_orders atau akun tidak aktif"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/products": {
+            "get": {
+                "tags": [
+                    "Catalog"
+                ],
+                "summary": "Menampilkan daftar menu",
+                "description": "Mengambil daftar produk aktif beserta status kelayakan order berdasarkan ketersediaan bahan baku.",
+                "operationId": "productIndex",
+                "parameters": [
+                    {
+                        "name": "search",
+                        "in": "query",
+                        "description": "Pencarian berdasarkan nama atau deskripsi produk",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "category_id",
+                        "in": "query",
+                        "description": "Filter berdasarkan ID kategori",
+                        "required": false,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "description": "Nomor halaman",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "description": "Jumlah data per halaman (default: 15, max: 100)",
+                        "required": false,
+                        "schema": {
+                            "type": "integer",
+                            "maximum": 100,
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Daftar produk",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer"
+                                                    },
+                                                    "name": {
+                                                        "type": "string"
+                                                    },
+                                                    "description": {
+                                                        "type": "string",
+                                                        "nullable": true
+                                                    },
+                                                    "price": {
+                                                        "type": "integer"
+                                                    },
+                                                    "image_url": {
+                                                        "type": "string",
+                                                        "nullable": true
+                                                    },
+                                                    "category": {
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer",
+                                                                "nullable": true
+                                                            },
+                                                            "name": {
+                                                                "type": "string",
+                                                                "nullable": true
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    },
+                                                    "is_available": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "is_orderable": {
+                                                        "type": "boolean"
+                                                    },
+                                                    "unavailable_reason": {
+                                                        "type": "string",
+                                                        "nullable": true,
+                                                        "enum": [
+                                                            "product_inactive",
+                                                            "category_inactive",
+                                                            "not_available",
+                                                            "recipe_missing",
+                                                            "recipe_invalid",
+                                                            "ingredient_inactive",
+                                                            "insufficient_stock"
+                                                        ]
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Tidak terautentikasi"
+                    },
+                    "403": {
+                        "description": "Tidak memiliki permission manage_orders atau akun tidak aktif"
+                    },
+                    "422": {
+                        "description": "Validasi gagal"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/orders": {
+            "post": {
+                "tags": [
+                    "Orders"
+                ],
+                "summary": "Membuat order baru",
+                "description": "Membuat order beserta item-nya. Harga, subtotal, total, nomor order, status, dan runner ditentukan oleh server. Stok bahan baku divalidasi dan dikurangi secara atomik.",
+                "operationId": "orderStore",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "required": [
+                                    "order_type",
+                                    "customer_name",
+                                    "items"
+                                ],
+                                "properties": {
+                                    "order_type": {
+                                        "type": "string",
+                                        "enum": [
+                                            "dine_in",
+                                            "takeaway"
+                                        ]
+                                    },
+                                    "customer_name": {
+                                        "type": "string",
+                                        "example": "Budi"
+                                    },
+                                    "table_id": {
+                                        "description": "Wajib untuk dine_in dan tidak boleh diisi untuk takeaway",
+                                        "type": "integer",
+                                        "nullable": true
+                                    },
+                                    "note": {
+                                        "type": "string",
+                                        "example": "Tanpa pedas",
+                                        "nullable": true
+                                    },
+                                    "items": {
+                                        "type": "array",
+                                        "items": {
+                                            "required": [
+                                                "product_id",
+                                                "quantity"
+                                            ],
+                                            "properties": {
+                                                "product_id": {
+                                                    "type": "integer"
+                                                },
+                                                "quantity": {
+                                                    "type": "integer",
+                                                    "minimum": 1
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    }
+                                },
+                                "type": "object"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Order berhasil dibuat",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer"
+                                                },
+                                                "order_number": {
+                                                    "type": "string"
+                                                },
+                                                "customer_name": {
+                                                    "type": "string"
+                                                },
+                                                "order_type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "dine_in",
+                                                        "takeaway"
+                                                    ]
+                                                },
+                                                "status": {
+                                                    "type": "string",
+                                                    "example": "pending"
+                                                },
+                                                "note": {
+                                                    "type": "string",
+                                                    "nullable": true
+                                                },
+                                                "cancellation_reason": {
+                                                    "type": "string",
+                                                    "nullable": true
+                                                },
+                                                "table": {
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "number": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "type": "object",
+                                                    "nullable": true
+                                                },
+                                                "runner": {
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                },
+                                                "chef": {
+                                                    "properties": {
+                                                        "id": {
+                                                            "type": "integer"
+                                                        },
+                                                        "name": {
+                                                            "type": "string"
+                                                        }
+                                                    },
+                                                    "type": "object",
+                                                    "nullable": true
+                                                },
+                                                "subtotal": {
+                                                    "type": "integer"
+                                                },
+                                                "discount": {
+                                                    "type": "integer"
+                                                },
+                                                "tax": {
+                                                    "type": "integer"
+                                                },
+                                                "total": {
+                                                    "type": "integer"
+                                                },
+                                                "items": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "properties": {
+                                                            "id": {
+                                                                "type": "integer"
+                                                            },
+                                                            "product": {
+                                                                "properties": {
+                                                                    "id": {
+                                                                        "type": "integer"
+                                                                    },
+                                                                    "name": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "type": "object"
+                                                            },
+                                                            "unit_price": {
+                                                                "type": "integer"
+                                                            },
+                                                            "quantity": {
+                                                                "type": "integer"
+                                                            },
+                                                            "subtotal": {
+                                                                "type": "integer"
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    }
+                                                },
+                                                "created_at": {
+                                                    "type": "string",
+                                                    "format": "date-time"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Tidak terautentikasi"
+                    },
+                    "403": {
+                        "description": "Tidak memiliki permission manage_orders atau akun tidak aktif"
+                    },
+                    "422": {
+                        "description": "Validasi gagal, meja tidak tersedia, produk tidak dapat dipesan, atau stok tidak mencukupi"
                     }
                 },
                 "security": [
@@ -933,6 +1328,14 @@
         {
             "name": "Auth",
             "description": "Auth"
+        },
+        {
+            "name": "Catalog",
+            "description": "Catalog"
+        },
+        {
+            "name": "Orders",
+            "description": "Orders"
         },
         {
             "name": "Permissions",
