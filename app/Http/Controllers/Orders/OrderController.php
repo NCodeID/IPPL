@@ -226,6 +226,75 @@ class OrderController extends Controller
             new OA\Response(response: 422, description: 'Validasi gagal, meja tidak tersedia, produk tidak dapat dipesan, atau stok tidak mencukupi'),
         ],
     )]
+    #[OA\Get(
+        path: '/api/orders/{order}',
+        operationId: 'orderBillSummary',
+        summary: 'Mengambil ringkasan bill pesanan',
+        description: 'Mengembalikan detail pesanan dan rincian bill untuk role kasir dan runner. Harga item menggunakan harga transaksi yang tersimpan. Biaya layanan 5% dan pajak 10% dihitung dari subtotal item; endpoint hanya membaca data.',
+        tags: ['Orders'],
+        security: [['sanctum' => []]],
+        parameters: [
+            new OA\PathParameter(
+                name: 'order',
+                description: 'ID pesanan dari field id pada daftar Pantau Pesanan',
+                required: true,
+                schema: new OA\Schema(type: 'integer', example: 42),
+            ),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Ringkasan bill pesanan',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(
+                            property: 'data',
+                            type: 'object',
+                            properties: [
+                                new OA\Property(property: 'id', type: 'integer', example: 42),
+                                new OA\Property(property: 'customer_name', type: 'string', example: 'Budi'),
+                                new OA\Property(property: 'order_number', type: 'string', example: 'ORD-20261024-143000-A1B2'),
+                                new OA\Property(property: 'order_type', type: 'string', enum: ['dine in', 'takeaway']),
+                                new OA\Property(property: 'total_menu', type: 'integer', example: 2),
+                                new OA\Property(property: 'total_item', type: 'integer', example: 3),
+                                new OA\Property(property: 'note', type: 'string', example: 'Tidak ada'),
+                                new OA\Property(
+                                    property: 'items',
+                                    type: 'array',
+                                    items: new OA\Items(
+                                        properties: [
+                                            new OA\Property(property: 'menu_name', type: 'string', nullable: true),
+                                            new OA\Property(property: 'unit_price', type: 'integer', example: 25000),
+                                            new OA\Property(property: 'quantity', type: 'integer', example: 2),
+                                            new OA\Property(property: 'subtotal', type: 'integer', example: 50000),
+                                        ],
+                                        type: 'object',
+                                    ),
+                                ),
+                                new OA\Property(
+                                    property: 'bill',
+                                    type: 'object',
+                                    properties: [
+                                        new OA\Property(property: 'subtotal', type: 'integer', example: 50000),
+                                        new OA\Property(property: 'discount', type: 'integer', example: 0),
+                                        new OA\Property(property: 'service_charge', type: 'integer', example: 2500),
+                                        new OA\Property(property: 'service_rate', type: 'integer', example: 5),
+                                        new OA\Property(property: 'tax', type: 'integer', example: 5000),
+                                        new OA\Property(property: 'tax_rate', type: 'integer', example: 10),
+                                        new OA\Property(property: 'tax_basis', type: 'string', enum: ['subtotal']),
+                                        new OA\Property(property: 'total', type: 'integer', example: 57500),
+                                    ],
+                                ),
+                            ],
+                        ),
+                    ],
+                ),
+            ),
+            new OA\Response(response: 401, description: 'Tidak terautentikasi'),
+            new OA\Response(response: 403, description: 'Akun tidak aktif, tidak memiliki permission, atau role bukan kasir/runner'),
+            new OA\Response(response: 404, description: 'Pesanan tidak ditemukan'),
+        ],
+    )]
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -392,6 +461,45 @@ class OrderController extends Controller
                 'per_page' => $orders->perPage(),
                 'to' => $orders->lastItem(),
                 'total' => $orders->total(),
+            ],
+        ]);
+    }
+
+    public function show(Order $order): JsonResponse
+    {
+        $order->load('items.product:id,name');
+
+        $itemSubtotal = (int) $order->items->sum(fn (OrderItem $item): int => (int) $item->subtotal);
+        $discount = min((int) $order->discount, $itemSubtotal);
+        $serviceCharge = intdiv($itemSubtotal * 5 + 50, 100);
+        $tax = intdiv($itemSubtotal * 10 + 50, 100);
+        $total = $itemSubtotal - $discount + $serviceCharge + $tax;
+
+        return response()->json([
+            'data' => [
+                'id' => $order->id,
+                'customer_name' => $order->customer_name,
+                'order_number' => $order->order_number,
+                'order_type' => $order->order_type === 'dine_in' ? 'dine in' : 'takeaway',
+                'total_menu' => $order->items->unique('product_id')->count(),
+                'total_item' => (int) $order->items->sum('quantity'),
+                'note' => $order->note ?: 'Tidak ada',
+                'items' => $order->items->map(fn (OrderItem $item): array => [
+                    'menu_name' => $item->product?->name,
+                    'unit_price' => (int) $item->unit_price,
+                    'quantity' => (int) $item->quantity,
+                    'subtotal' => (int) $item->subtotal,
+                ])->all(),
+                'bill' => [
+                    'subtotal' => $itemSubtotal,
+                    'discount' => $discount,
+                    'service_charge' => $serviceCharge,
+                    'service_rate' => 5,
+                    'tax' => $tax,
+                    'tax_rate' => 10,
+                    'tax_basis' => 'subtotal',
+                    'total' => $total,
+                ],
             ],
         ]);
     }

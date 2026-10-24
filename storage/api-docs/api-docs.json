@@ -766,6 +766,155 @@
                 ]
             }
         },
+        "/api/orders/{order}": {
+            "get": {
+                "tags": [
+                    "Orders"
+                ],
+                "summary": "Mengambil ringkasan bill pesanan",
+                "description": "Mengembalikan detail pesanan dan rincian bill untuk role kasir dan runner. Harga item menggunakan harga transaksi yang tersimpan. Biaya layanan 5% dan pajak 10% dihitung dari subtotal item; endpoint hanya membaca data.",
+                "operationId": "orderBillSummary",
+                "parameters": [
+                    {
+                        "name": "order",
+                        "in": "path",
+                        "description": "ID pesanan dari field id pada daftar Pantau Pesanan",
+                        "required": true,
+                        "schema": {
+                            "type": "integer",
+                            "example": 42
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Ringkasan bill pesanan",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "properties": {
+                                                "id": {
+                                                    "type": "integer",
+                                                    "example": 42
+                                                },
+                                                "customer_name": {
+                                                    "type": "string",
+                                                    "example": "Budi"
+                                                },
+                                                "order_number": {
+                                                    "type": "string",
+                                                    "example": "ORD-20261024-143000-A1B2"
+                                                },
+                                                "order_type": {
+                                                    "type": "string",
+                                                    "enum": [
+                                                        "dine in",
+                                                        "takeaway"
+                                                    ]
+                                                },
+                                                "total_menu": {
+                                                    "type": "integer",
+                                                    "example": 2
+                                                },
+                                                "total_item": {
+                                                    "type": "integer",
+                                                    "example": 3
+                                                },
+                                                "note": {
+                                                    "type": "string",
+                                                    "example": "Tidak ada"
+                                                },
+                                                "items": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "properties": {
+                                                            "menu_name": {
+                                                                "type": "string",
+                                                                "nullable": true
+                                                            },
+                                                            "unit_price": {
+                                                                "type": "integer",
+                                                                "example": 25000
+                                                            },
+                                                            "quantity": {
+                                                                "type": "integer",
+                                                                "example": 2
+                                                            },
+                                                            "subtotal": {
+                                                                "type": "integer",
+                                                                "example": 50000
+                                                            }
+                                                        },
+                                                        "type": "object"
+                                                    }
+                                                },
+                                                "bill": {
+                                                    "properties": {
+                                                        "subtotal": {
+                                                            "type": "integer",
+                                                            "example": 50000
+                                                        },
+                                                        "discount": {
+                                                            "type": "integer",
+                                                            "example": 0
+                                                        },
+                                                        "service_charge": {
+                                                            "type": "integer",
+                                                            "example": 2500
+                                                        },
+                                                        "service_rate": {
+                                                            "type": "integer",
+                                                            "example": 5
+                                                        },
+                                                        "tax": {
+                                                            "type": "integer",
+                                                            "example": 5000
+                                                        },
+                                                        "tax_rate": {
+                                                            "type": "integer",
+                                                            "example": 10
+                                                        },
+                                                        "tax_basis": {
+                                                            "type": "string",
+                                                            "enum": [
+                                                                "subtotal"
+                                                            ]
+                                                        },
+                                                        "total": {
+                                                            "type": "integer",
+                                                            "example": 57500
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Tidak terautentikasi"
+                    },
+                    "403": {
+                        "description": "Akun tidak aktif, tidak memiliki permission, atau role bukan kasir/runner"
+                    },
+                    "404": {
+                        "description": "Pesanan tidak ditemukan"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
         "/api/permissions": {
             "get": {
                 "tags": [

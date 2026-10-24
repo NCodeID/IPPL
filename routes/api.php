@@ -53,6 +53,7 @@ Route::middleware(['auth:sanctum', 'active', 'permission:manage_orders'])->group
         Route::get('/categories', [CategoryController::class, 'index']);
         Route::get('/products', [ProductController::class, 'index']);
         Route::get('/orders/monitor', [OrderController::class, 'monitor']);
+        Route::get('/orders/{order}', [OrderController::class, 'show']);
         Route::post('/orders', [OrderController::class, 'store']);
     },
 );
