@@ -35,6 +35,19 @@ class Order extends Model
         self::STATUS_SERVED,
     ];
 
+    public const RUNNER_STATUSES = [
+        self::STATUS_PENDING,
+        self::STATUS_COOKING,
+        self::STATUS_READY,
+    ];
+
+    public const CASHIER_STATUSES = [
+        self::STATUS_PENDING,
+        self::STATUS_COOKING,
+        self::STATUS_READY,
+        self::STATUS_SERVED,
+    ];
+
     public function runner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'runner_id');
@@ -63,6 +76,21 @@ class Order extends Model
     public function scopeActive(Builder $query): Builder
     {
         return $query->whereIn('status', self::ACTIVE_STATUSES);
+    }
+
+    public function scopeForRunner(Builder $query): Builder
+    {
+        return $query->whereIn('status', self::RUNNER_STATUSES);
+    }
+
+    public function scopeForCashier(Builder $query): Builder
+    {
+        return $query->whereIn('status', self::CASHIER_STATUSES);
+    }
+
+    public function scopeWithStatus(Builder $query, string $status): Builder
+    {
+        return $query->where('status', $status);
     }
 
     protected static function booted(): void

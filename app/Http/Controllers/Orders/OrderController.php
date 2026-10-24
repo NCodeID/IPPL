@@ -1,7 +1,5 @@
 <?php
 
-declare(strict_types=1);
-
 namespace App\Http\Controllers\Orders;
 
 use App\Http\Controllers\Controller;
@@ -15,11 +13,109 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use OpenApi\Attributes as OA;
 
 class OrderController extends Controller
 {
+    private const DEFAULT_PER_PAGE = 15;
+
+    private const MAX_PER_PAGE = 100;
+
+    #[OA\Get(
+        path: '/api/orders/monitor',
+        operationId: 'orderMonitor',
+        summary: 'Monitoring daftar order aktif untuk kasir dan runner',
+        description: 'Menampilkan daftar order yang sedang berjalan dengan filter status dan pagination. Runner hanya melihat pending, cooking, dan ready. Kasir melihat pending, cooking, ready, dan served. Menyertakan total order aktif dan rincian per status.',
+        tags: ['Orders'],
+        security: [['sanctum' => []]],
+        parameters: [
+            new OA\QueryParameter(
+                name: 'status',
+                description: 'Filter status order: all, pending, cooking, ready, served, completed, cancelled',
+                required: false,
+                schema: new OA\Schema(type: 'string', enum: ['all', 'pending', 'cooking', 'ready', 'served', 'completed', 'cancelled']),
+            ),
+            new OA\QueryParameter(
+                name: 'page',
+                description: 'Nomor halaman',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1),
+            ),
+            new OA\QueryParameter(
+                name: 'per_page',
+                description: 'Jumlah data per halaman (default: 15, max: 100)',
+                required: false,
+                schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100),
+            ),
+        ],
+        responses: [
+            new OA\Response(
+                response: 200,
+                description: 'Daftar order aktif dan statistik status',
+                content: new OA\JsonContent(
+                    properties: [
+                        new OA\Property(
+                            property: 'counts',
+                            properties: [
+                                new OA\Property(property: 'total', type: 'integer', example: 42),
+                                new OA\Property(
+                                    property: 'by_status',
+                                    type: 'object',
+                                    additionalProperties: new OA\AdditionalProperties(type: 'integer'),
+                                ),
+                            ],
+                            type: 'object',
+                        ),
+                        new OA\Property(
+                            property: 'data',
+                            type: 'array',
+                            items: new OA\Items(
+                                properties: [
+                                    new OA\Property(property: 'id', type: 'integer', example: 101),
+                                    new OA\Property(property: 'order_number', type: 'string', example: 'ORD-20261024-143000-A1B2'),
+                                    new OA\Property(property: 'table_number', type: 'integer', nullable: true, example: 5),
+                                    new OA\Property(property: 'customer_name', type: 'string', example: 'Budi'),
+                                    new OA\Property(property: 'status', type: 'string', example: 'cooking'),
+                                    new OA\Property(property: 'items_count', type: 'integer', example: 3),
+                                    new OA\Property(property: 'created_at', type: 'string', format: 'date-time'),
+                                ],
+                                type: 'object',
+                            ),
+                        ),
+                        new OA\Property(
+                            property: 'links',
+                            properties: [
+                                new OA\Property(property: 'first', type: 'string', nullable: true),
+                                new OA\Property(property: 'last', type: 'string', nullable: true),
+                                new OA\Property(property: 'prev', type: 'string', nullable: true),
+                                new OA\Property(property: 'next', type: 'string', nullable: true),
+                            ],
+                            type: 'object',
+                        ),
+                        new OA\Property(
+                            property: 'meta',
+                            properties: [
+                                new OA\Property(property: 'current_page', type: 'integer'),
+                                new OA\Property(property: 'from', type: 'integer', nullable: true),
+                                new OA\Property(property: 'last_page', type: 'integer'),
+                                new OA\Property(property: 'path', type: 'string'),
+                                new OA\Property(property: 'per_page', type: 'integer'),
+                                new OA\Property(property: 'to', type: 'integer', nullable: true),
+                                new OA\Property(property: 'total', type: 'integer'),
+                            ],
+                            type: 'object',
+                        ),
+                    ],
+                ),
+            ),
+            new OA\Response(response: 401, description: 'Tidak terautentikasi'),
+            new OA\Response(response: 403, description: 'Tidak memiliki hak akses'),
+            new OA\Response(response: 422, description: 'Parameter query tidak valid'),
+        ],
+    )]
+
     #[OA\Post(
         path: '/api/orders',
         operationId: 'orderStore',
@@ -213,6 +309,93 @@ class OrderController extends Controller
         ], 201);
     }
 
+    public function monitor(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->hasRole('runner')) {
+            $allowedStatuses = Order::RUNNER_STATUSES;
+        } elseif ($user->hasRole('kasir')) {
+            $allowedStatuses = Order::CASHIER_STATUSES;
+        } else {
+            return response()->json(['message' => 'Tidak punya akses.'], 403);
+        }
+
+        $validated = $request->validate([
+            'status' => [
+                'nullable',
+                'string',
+                Rule::in([
+                    'all',
+                    Order::STATUS_PENDING,
+                    Order::STATUS_COOKING,
+                    Order::STATUS_READY,
+                    Order::STATUS_SERVED,
+                    Order::STATUS_COMPLETED,
+                    Order::STATUS_CANCELLED,
+                ]),
+            ],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:'.self::MAX_PER_PAGE],
+        ]);
+
+        $baseCountQuery = Order::query()->whereIn('status', $allowedStatuses);
+        $totalOngoing = (clone $baseCountQuery)->count();
+
+        $rawCounts = (clone $baseCountQuery)
+            ->select('status', DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status')
+            ->all();
+
+        $byStatus = [];
+        foreach ($allowedStatuses as $statusKey) {
+            $byStatus[$statusKey] = (int) ($rawCounts[$statusKey] ?? 0);
+        }
+
+        $ordersQuery = Order::query()
+            ->select(['id', 'order_number', 'table_id', 'customer_name', 'status', 'created_at'])
+            ->whereIn('status', $allowedStatuses)
+            ->with(['table:id,number'])
+            ->withSum('items as items_count', 'quantity');
+
+        $statusFilter = filled($validated['status'] ?? null) ? $validated['status'] : 'all';
+        if ($statusFilter !== 'all') {
+            $ordersQuery->where('status', $statusFilter);
+        }
+
+        $orders = $ordersQuery
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->paginate(perPage: (int) ($validated['per_page'] ?? self::DEFAULT_PER_PAGE));
+
+        return response()->json([
+            'counts' => [
+                'total' => $totalOngoing,
+                'by_status' => $byStatus,
+            ],
+            'data' => $orders->getCollection()
+                ->map(fn (Order $order): array => $this->transformCard($order))
+                ->all(),
+            'links' => [
+                'first' => $orders->url(1),
+                'last' => $orders->url($orders->lastPage()),
+                'prev' => $orders->previousPageUrl(),
+                'next' => $orders->nextPageUrl(),
+            ],
+            'meta' => [
+                'current_page' => $orders->currentPage(),
+                'from' => $orders->firstItem(),
+                'last_page' => $orders->lastPage(),
+                'links' => $orders->linkCollection()->toArray(),
+                'path' => $orders->path(),
+                'per_page' => $orders->perPage(),
+                'to' => $orders->lastItem(),
+                'total' => $orders->total(),
+            ],
+        ]);
+    }
+
     private function reserveStock(array $items): Collection
     {
         $quantities = [];
@@ -354,6 +537,19 @@ class OrderController extends Controller
         return [
             'is_orderable' => true,
             'unavailable_reason' => null,
+        ];
+    }
+
+    private function transformCard(Order $order): array
+    {
+        return [
+            'id' => $order->id,
+            'order_number' => $order->order_number,
+            'table_number' => $order->table?->number,
+            'customer_name' => $order->customer_name,
+            'status' => $order->status,
+            'items_count' => (int) ($order->items_count ?? 0),
+            'created_at' => $order->created_at?->toISOString(),
         ];
     }
 
