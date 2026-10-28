@@ -70,4 +70,50 @@ class LoginController extends Controller
             'token' => $user->createToken('auth_token')->plainTextToken,
         ]);
     }
+
+    public function showLoginForm()
+    {
+        return view('auth.login');
+    }
+
+    public function showDashboard()
+    {
+        return view('dashboard.dashboard');
+    }
+
+    public function webLogout(Request $request)
+    {
+        Auth::logout();
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect('/');
+    }
+
+    public function webLogin(Request $request)
+    {
+        $credentials = $request->validate([
+            'email' => 'required|email',
+            'password' => 'required',
+        ]);
+
+        if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+            throw ValidationException::withMessages([
+                'email' => ['credensial tidak valid.'],
+            ]);
+        }
+
+        if (! Auth::user()->is_active) {
+            Auth::logout();
+
+            throw ValidationException::withMessages([
+                'email' => ['Akun tidak dapat dipakai.'],
+            ]);
+        }
+
+        $request->session()->regenerate();
+
+        return redirect()->intended('/');
+    }
 }
