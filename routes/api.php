@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Akuntan\PurchaseRequestController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\RegisterController;
@@ -55,5 +56,11 @@ Route::middleware(['auth:sanctum', 'active', 'permission:manage_orders'])->group
         Route::get('/orders/monitor', [OrderController::class, 'monitor']);
         Route::get('/orders/{order}', [OrderController::class, 'show']);
         Route::post('/orders', [OrderController::class, 'store']);
+    },
+);
+
+Route::middleware(['auth:sanctum', 'active', 'permission:manage_purchase_requests'])->group(
+    function () {
+        Route::get('/purchase-requests', [PurchaseRequestController::class, 'index']);
     },
 );
