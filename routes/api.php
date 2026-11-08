@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Akuntan\BestSellerController;
 use App\Http\Controllers\Akuntan\PurchaseRequestController;
 use App\Http\Controllers\Akuntan\SalesReportController;
 use App\Http\Controllers\Akuntan\SettlementController;
@@ -79,5 +80,12 @@ Route::middleware(['auth:sanctum', 'active', 'permission:manage_payments'])->gro
     function () {
         Route::get('/sales-reports', [SalesReportController::class, 'index']);
         Route::get('/sales-reports/{order}', [SalesReportController::class, 'show']);
+    },
+);
+
+Route::middleware(['auth:sanctum', 'active', 'permission:manage_orders'])->group(
+    function () {
+        Route::get('/best-sellers', [BestSellerController::class, 'index']);
+        Route::get('/best-sellers/{product}', [BestSellerController::class, 'show']);
     },
 );
