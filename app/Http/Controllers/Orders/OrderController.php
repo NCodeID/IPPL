@@ -120,7 +120,7 @@ class OrderController extends Controller
         path: '/api/orders',
         operationId: 'orderStore',
         summary: 'Membuat order baru',
-        description: 'Membuat order beserta item-nya. Harga, subtotal, total, nomor order, status, dan runner ditentukan oleh server. Stok bahan baku divalidasi dan dikurangi secara atomik.',
+        description: 'Membuat order beserta item-nya. Runner dine_in wajib membawa hold_token miliknya yang valid; hold dikonsumsi atomik bersama order dan stok. Non-Runner tetap dapat memesan meja tanpa hold, tetapi tidak dapat melewati hold aktif. Takeaway tidak memerlukan hold.',
         tags: ['Orders'],
         security: [['sanctum' => []]],
         requestBody: new OA\RequestBody(
@@ -132,6 +132,7 @@ class OrderController extends Controller
                     new OA\Property(property: 'customer_name', type: 'string', example: 'Budi'),
                     new OA\Property(property: 'table_id', type: 'integer', nullable: true, description: 'Wajib untuk dine_in dan tidak boleh diisi untuk takeaway'),
                     new OA\Property(property: 'note', type: 'string', nullable: true, example: 'Tanpa pedas'),
+                    new OA\Property(property: 'hold_token', type: 'string', format: 'password', minLength: 64, maxLength: 64, nullable: true, description: 'Wajib untuk Runner dine_in; diperoleh dari POST /api/tables/{table}/hold'),
                     new OA\Property(
                         property: 'items',
                         type: 'array',
@@ -224,6 +225,8 @@ class OrderController extends Controller
             new OA\Response(response: 401, description: 'Tidak terautentikasi'),
             new OA\Response(response: 403, description: 'Tidak memiliki permission manage_orders atau akun tidak aktif'),
             new OA\Response(response: 422, description: 'Validasi gagal, meja tidak tersedia, produk tidak dapat dipesan, atau stok tidak mencukupi'),
+            new OA\Response(response: 409, description: 'Runner dine_in tidak memiliki hold/token yang cocok, atau meja memiliki hold aktif milik instance lain'),
+            new OA\Response(response: 503, description: 'Penyimpanan hold tidak tersedia; order dine_in tidak dibuat'),
         ],
     )]
     #[OA\Get(
@@ -308,6 +311,7 @@ class OrderController extends Controller
                 'prohibited_if:order_type,takeaway',
             ],
             'note' => ['nullable', 'string', 'max:1000'],
+            'hold_token' => ['nullable', 'string', 'size:64'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'integer', 'distinct', 'exists:products,id'],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
@@ -330,7 +334,12 @@ class OrderController extends Controller
                     ]);
                 }
 
-                if ($table->activeOrders()->exists()) {
+                $hold = $table->currentHold();
+                if ($hold !== null || $runner->hasRole('runner')) {
+                    abort_unless($runner->hasRole('runner') && $table->ownsHold($hold, $runner->id, $validated['hold_token'] ?? ''), 409, 'Hold meja tidak valid atau sudah berakhir.');
+                }
+
+                if ($table->activeOrders()->lockForUpdate()->exists()) {
                     throw ValidationException::withMessages([
                         'table_id' => 'Meja sedang digunakan.',
                     ]);
@@ -369,6 +378,10 @@ class OrderController extends Controller
             ]);
 
             $order->items()->createMany($orderItems);
+
+            if ($table !== null && $hold !== null) {
+                $table->deleteHold();
+            }
 
             return $order->fresh(['items.product', 'table', 'runner', 'chef']);
         }, attempts: 3);
