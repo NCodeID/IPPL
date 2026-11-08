@@ -49,7 +49,7 @@ Route::middleware(['auth:sanctum', 'active', 'permission:view_tables'])->group(
 );
 
 Route::match(['post', 'patch', 'delete'], '/tables/{table}/hold', [TableController::class, 'hold'])
-    ->middleware(['auth:sanctum', 'active', 'permission:view_tables', 'permission:manage_orders', 'role:runner']);
+    ->middleware(['auth:sanctum', 'active', 'permission:view_tables', 'permission:manage_orders', 'role:runner,kasir']);
 
 Route::middleware(['auth:sanctum', 'active', 'permission:manage_orders'])->group(
     function () {

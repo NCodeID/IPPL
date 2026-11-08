@@ -210,8 +210,8 @@ class TableController extends Controller
     #[OA\Post(
         path: '/api/tables/{table}/hold',
         operationId: 'tableHoldAcquire',
-        summary: 'Runner mengambil hold meja dine-in',
-        description: 'Memerlukan akun aktif, role runner, view_tables dan manage_orders. Tidak menyimpan draft. Hold berlaku 10 menit; frontend memperbarui setiap 2 menit. POST ulang pada hold yang masih valid ditolak, termasuk untuk Runner yang sama.',
+        summary: 'Runner dan kasir mengambil hold meja dine-in',
+        description: 'Memerlukan akun aktif, role runner atau kasir, view_tables dan manage_orders. Tidak menyimpan draft. Hold berlaku 10 menit; frontend memperbarui setiap 2 menit. POST ulang pada hold yang masih valid ditolak, termasuk untuk pemilik yang sama.',
         tags: ['Tables'],
         security: [['sanctum' => []]],
         parameters: [new OA\PathParameter(name: 'table', required: true, schema: new OA\Schema(type: 'integer'))],
