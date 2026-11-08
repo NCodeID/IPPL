@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Akuntan\PurchaseRequestController;
+use App\Http\Controllers\Akuntan\SettlementController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\RegisterController;
@@ -65,5 +66,10 @@ Route::middleware(['auth:sanctum', 'active', 'permission:manage_purchase_request
         Route::get('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'show']);
         Route::post('/purchase-requests/{purchaseRequest}/approve', [PurchaseRequestController::class, 'approve']);
         Route::post('/purchase-requests/{purchaseRequest}/reject', [PurchaseRequestController::class, 'reject']);
+
+        Route::get('/settlements', [SettlementController::class, 'index']);
+        Route::get('/settlements/{purchaseRequest}', [SettlementController::class, 'show']);
+        Route::post('/settlements/{purchaseRequest}/complete', [SettlementController::class, 'complete']);
+        Route::post('/settlements/{purchaseRequest}/revision', [SettlementController::class, 'requestRevision']);
     },
 );
