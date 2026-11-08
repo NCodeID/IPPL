@@ -62,5 +62,8 @@ Route::middleware(['auth:sanctum', 'active', 'permission:manage_orders'])->group
 Route::middleware(['auth:sanctum', 'active', 'permission:manage_purchase_requests'])->group(
     function () {
         Route::get('/purchase-requests', [PurchaseRequestController::class, 'index']);
+        Route::get('/purchase-requests/{purchaseRequest}', [PurchaseRequestController::class, 'show']);
+        Route::post('/purchase-requests/{purchaseRequest}/approve', [PurchaseRequestController::class, 'approve']);
+        Route::post('/purchase-requests/{purchaseRequest}/reject', [PurchaseRequestController::class, 'reject']);
     },
 );
