@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Akuntan\PurchaseRequestController;
+use App\Http\Controllers\Akuntan\SalesReportController;
 use App\Http\Controllers\Akuntan\SettlementController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
@@ -71,5 +72,12 @@ Route::middleware(['auth:sanctum', 'active', 'permission:manage_purchase_request
         Route::get('/settlements/{purchaseRequest}', [SettlementController::class, 'show']);
         Route::post('/settlements/{purchaseRequest}/complete', [SettlementController::class, 'complete']);
         Route::post('/settlements/{purchaseRequest}/revision', [SettlementController::class, 'requestRevision']);
+    },
+);
+
+Route::middleware(['auth:sanctum', 'active', 'permission:manage_payments'])->group(
+    function () {
+        Route::get('/sales-reports', [SalesReportController::class, 'index']);
+        Route::get('/sales-reports/{order}', [SalesReportController::class, 'show']);
     },
 );
