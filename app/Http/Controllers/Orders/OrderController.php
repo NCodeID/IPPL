@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -477,15 +478,129 @@ class OrderController extends Controller
         ]);
     }
 
+    #[OA\Get(
+        path: '/api/cashier/checkout',
+        operationId: 'cashierCheckout',
+        summary: 'Dashboard order belum dibayar dan antrean checkout served',
+        description: 'Read-only untuk kasir/admin aktif dengan manage_orders DAN manage_payments. Unpaid berarti tanpa payment success; pending tetap unpaid dan memblokir kesiapan inisiasi. Semua nominal adalah preview IDR, bukan quote beku atau otorisasi pembayaran. Summary independen dari view/pagination. Tidak membuat intent, menyimpan biaya atau menyelesaikan order.',
+        tags: ['Orders'],
+        security: [['sanctum' => []]],
+        parameters: [
+            new OA\QueryParameter(name: 'view', in: 'query', schema: new OA\Schema(type: 'string', enum: ['all_unpaid', 'served'], default: 'served')),
+            new OA\QueryParameter(name: 'page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1)),
+            new OA\QueryParameter(name: 'per_page', in: 'query', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 15)),
+        ],
+        responses: [
+            new OA\Response(response: 200, description: 'Preview checkout dengan urutan created_at DESC, id DESC', content: new OA\JsonContent(
+                type: 'object',
+                properties: [
+                    new OA\Property(property: 'view', type: 'string'),
+                    new OA\Property(property: 'pricing', type: 'object', properties: [
+                        new OA\Property(property: 'currency', type: 'string', example: 'IDR'),
+                        new OA\Property(property: 'kind', type: 'string', example: 'preview'),
+                    ]),
+                    new OA\Property(property: 'summary', type: 'object', description: 'all_unpaid, served, ready_to_initiate: masing-masing count dan preview_total. Ready adalah served tanpa pending attempt.'),
+                    new OA\Property(property: 'anomalies', type: 'object', properties: [
+                        new OA\Property(property: 'completed_without_success_count', type: 'integer'),
+                    ]),
+                    new OA\Property(property: 'data', type: 'array', items: new OA\Items(type: 'object', properties: [
+                        new OA\Property(property: 'id', type: 'integer'),
+                        new OA\Property(property: 'order_number', type: 'string'),
+                        new OA\Property(property: 'customer_name', type: 'string'),
+                        new OA\Property(property: 'order_type', type: 'string', enum: ['dine_in', 'takeaway']),
+                        new OA\Property(property: 'status', type: 'string'),
+                        new OA\Property(property: 'table', type: 'object', nullable: true, description: 'id dan number bila terkait meja'),
+                        new OA\Property(property: 'created_at', type: 'string', format: 'date-time'),
+                        new OA\Property(property: 'bill_preview', type: 'object', description: 'Rincian bill sama dengan detail order; subtotal dari item historis, service/tax independen, bukan orders.total provisional.'),
+                        new OA\Property(property: 'payment_in_progress', type: 'boolean'),
+                        new OA\Property(property: 'can_initiate_payment', type: 'boolean', description: 'Kesiapan menurut status/attempt saat dibaca, bukan jaminan transaksi atau endpoint pembayaran yang sudah tersedia.'),
+                    ])),
+                    new OA\Property(property: 'links', type: 'object'),
+                    new OA\Property(property: 'meta', type: 'object'),
+                ],
+            )),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+            new OA\Response(response: 403, description: 'Inactive, wrong role, or missing either permission'),
+            new OA\Response(response: 422, description: 'Invalid view or pagination'),
+        ],
+    )]
+    public function checkout(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'view' => ['nullable', 'string', Rule::in(['all_unpaid', 'served'])],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:'.self::MAX_PER_PAGE],
+        ]);
+        $view = $validated['view'] ?? 'served';
+        $perPage = (int) ($validated['per_page'] ?? self::DEFAULT_PER_PAGE);
+        $successful = fn (Builder $query): Builder => $query->where('status', 'success');
+        $query = Order::query()
+            ->select(['id', 'order_number', 'table_id', 'customer_name', 'order_type', 'status', 'discount', 'created_at'])
+            ->active()
+            ->whereDoesntHave('payments', $successful)
+            ->withSum('items as item_subtotal', 'subtotal')
+            ->withExists(['payments as payment_in_progress' => fn (Builder $query): Builder => $query->where('status', 'pending')]);
+
+        $empty = ['count' => 0, 'preview_total' => 0];
+        $summary = ['all_unpaid' => $empty, 'served' => $empty, 'ready_to_initiate' => $empty];
+        foreach ((clone $query)->cursor() as $order) {
+            $due = $this->previewBill((int) $order->item_subtotal, (int) $order->discount)['total'];
+            $groups = ['all_unpaid'];
+            if ($order->status === Order::STATUS_SERVED) {
+                $groups[] = 'served';
+                if (! $order->payment_in_progress) {
+                    $groups[] = 'ready_to_initiate';
+                }
+            }
+            foreach ($groups as $group) {
+                $summary[$group]['count']++;
+                $summary[$group]['preview_total'] += $due;
+            }
+        }
+
+        $ordersQuery = (clone $query)->with(['table:id,number']);
+        if ($view === 'served') {
+            $ordersQuery->where('status', Order::STATUS_SERVED);
+        }
+        $orders = $ordersQuery->orderByDesc('created_at')->orderByDesc('id')
+            ->paginate(perPage: $perPage)->appends(['view' => $view, 'per_page' => $perPage]);
+
+        return response()->json([
+            'view' => $view,
+            'pricing' => ['currency' => 'IDR', 'kind' => 'preview'],
+            'summary' => $summary,
+            'anomalies' => ['completed_without_success_count' => Order::query()
+                ->where('status', Order::STATUS_COMPLETED)->whereDoesntHave('payments', $successful)->count()],
+            'data' => $orders->getCollection()->map(fn (Order $order): array => [
+                'id' => $order->id,
+                'order_number' => $order->order_number,
+                'customer_name' => $order->customer_name,
+                'order_type' => $order->order_type,
+                'status' => $order->status,
+                'table' => $order->table === null ? null : ['id' => $order->table->id, 'number' => $order->table->number],
+                'created_at' => $order->created_at?->toISOString(),
+                'bill_preview' => $this->previewBill((int) $order->item_subtotal, (int) $order->discount),
+                'payment_in_progress' => (bool) $order->payment_in_progress,
+                'can_initiate_payment' => $order->status === Order::STATUS_SERVED && ! $order->payment_in_progress,
+            ])->all(),
+            'links' => [
+                'first' => $orders->url(1), 'last' => $orders->url($orders->lastPage()),
+                'prev' => $orders->previousPageUrl(), 'next' => $orders->nextPageUrl(),
+            ],
+            'meta' => [
+                'current_page' => $orders->currentPage(), 'from' => $orders->firstItem(),
+                'last_page' => $orders->lastPage(), 'links' => $orders->linkCollection()->toArray(),
+                'path' => $orders->path(), 'per_page' => $orders->perPage(),
+                'to' => $orders->lastItem(), 'total' => $orders->total(),
+            ],
+        ]);
+    }
+
     public function show(Order $order): JsonResponse
     {
         $order->load('items.product:id,name');
 
         $itemSubtotal = (int) $order->items->sum(fn (OrderItem $item): int => (int) $item->subtotal);
-        $discount = min((int) $order->discount, $itemSubtotal);
-        $serviceCharge = intdiv($itemSubtotal * 5 + 50, 100);
-        $tax = intdiv($itemSubtotal * 10 + 50, 100);
-        $total = $itemSubtotal - $discount + $serviceCharge + $tax;
 
         return response()->json([
             'data' => [
@@ -502,16 +617,7 @@ class OrderController extends Controller
                     'quantity' => (int) $item->quantity,
                     'subtotal' => (int) $item->subtotal,
                 ])->all(),
-                'bill' => [
-                    'subtotal' => $itemSubtotal,
-                    'discount' => $discount,
-                    'service_charge' => $serviceCharge,
-                    'service_rate' => 5,
-                    'tax' => $tax,
-                    'tax_rate' => 10,
-                    'tax_basis' => 'subtotal',
-                    'total' => $total,
-                ],
+                'bill' => $this->previewBill($itemSubtotal, (int) $order->discount),
             ],
         ]);
     }
@@ -692,6 +798,24 @@ class OrderController extends Controller
         return [
             'is_orderable' => true,
             'unavailable_reason' => null,
+        ];
+    }
+
+    private function previewBill(int $itemSubtotal, int $discount): array
+    {
+        $discount = min($discount, $itemSubtotal);
+        $serviceCharge = intdiv($itemSubtotal * 5 + 50, 100);
+        $tax = intdiv($itemSubtotal * 10 + 50, 100);
+
+        return [
+            'subtotal' => $itemSubtotal,
+            'discount' => $discount,
+            'service_charge' => $serviceCharge,
+            'service_rate' => 5,
+            'tax' => $tax,
+            'tax_rate' => 10,
+            'tax_basis' => 'subtotal',
+            'total' => $itemSubtotal - $discount + $serviceCharge + $tax,
         ];
     }
 

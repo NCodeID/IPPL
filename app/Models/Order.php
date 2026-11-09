@@ -73,6 +73,11 @@ class Order extends Model
         return $this->hasOne(Payment::class);
     }
 
+    public function payments(): HasMany
+    {
+        return $this->hasMany(Payment::class);
+    }
+
     public function scopeActive(Builder $query): Builder
     {
         return $query->whereIn('status', self::ACTIVE_STATUSES);
