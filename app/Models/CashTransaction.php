@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['cash_category_id', 'payment_id', 'purchase_request_id', 'recorded_by', 'amount', 'description', 'transacted_at'])]
+#[Fillable(['cash_category_id', 'payment_id', 'fee_payment_id', 'purchase_request_id', 'recorded_by', 'amount', 'description', 'transacted_at'])]
 class CashTransaction extends Model
 {
     use HasFactory;
@@ -20,6 +20,11 @@ class CashTransaction extends Model
     public function payment(): BelongsTo
     {
         return $this->belongsTo(Payment::class);
+    }
+
+    public function feePayment(): BelongsTo
+    {
+        return $this->belongsTo(Payment::class, 'fee_payment_id');
     }
 
     public function purchaseRequest(): BelongsTo

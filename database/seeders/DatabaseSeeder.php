@@ -221,6 +221,7 @@ class DatabaseSeeder extends Seeder
             ['name' => 'Pembelian Bahan Baku', 'type' => 'out', 'is_active' => true],
             ['name' => 'Gaji', 'type' => 'out', 'is_active' => true],
             ['name' => 'Operasional', 'type' => 'out', 'is_active' => true],
+            ['name' => 'Biaya Midtrans', 'type' => 'out', 'is_active' => true],
         ];
 
         foreach ($categories as $cat) {

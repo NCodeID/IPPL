@@ -10,8 +10,9 @@ return new class extends Migration
     {
         Schema::create('cash_transactions', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('cash_category_id')->constrained('cash_categories')->cascadeOnDelete();
-            $table->foreignId('payment_id')->nullable()->unique()->constrained('payments')->nullOnDelete();
+            $table->foreignId('cash_category_id')->constrained('cash_categories')->restrictOnDelete();
+            $table->foreignId('payment_id')->nullable()->unique()->constrained('payments')->restrictOnDelete();
+            $table->foreignId('fee_payment_id')->nullable()->unique()->constrained('payments')->restrictOnDelete();
             $table->foreignId('purchase_request_id')->nullable()->constrained('purchase_requests')->nullOnDelete();
             $table->foreignId('recorded_by')->nullable()->constrained('users')->nullOnDelete();
             $table->bigInteger('amount')->unsigned();

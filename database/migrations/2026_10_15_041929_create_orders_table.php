@@ -22,8 +22,9 @@ return new class extends Migration
             $table->text('note')->nullable();
             $table->bigInteger('subtotal')->unsigned()->default(0);
             $table->bigInteger('discount')->unsigned()->default(0);
+            $table->bigInteger('service_charge')->unsigned()->default(0);
             $table->bigInteger('tax')->unsigned()->default(0);
-            $table->bigInteger('total')->unsigned()->storedAs('subtotal - discount + tax');
+            $table->bigInteger('total')->unsigned()->storedAs('subtotal - discount + service_charge + tax');
             $table->timestamp('completed_at')->nullable();
             $table->timestamps();
         });
