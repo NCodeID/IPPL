@@ -58,5 +58,6 @@ Route::middleware(['auth:sanctum', 'active', 'permission:manage_orders'])->group
         Route::get('/orders/monitor', [OrderController::class, 'monitor']);
         Route::get('/orders/{order}', [OrderController::class, 'show']);
         Route::post('/orders', [OrderController::class, 'store']);
+        Route::post('/orders/{order}/serve', [OrderController::class, 'serve'])->middleware('role:runner');
     },
 );

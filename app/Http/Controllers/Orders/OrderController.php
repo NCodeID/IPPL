@@ -516,6 +516,41 @@ class OrderController extends Controller
         ]);
     }
 
+    #[OA\Post(
+        path: '/api/orders/{order}/serve',
+        operationId: 'orderServe',
+        summary: 'Runner menandai pesanan ready sebagai served',
+        description: 'Memerlukan akun aktif, role runner dan permission manage_orders. Runner tidak harus pembuat pesanan. Berlaku untuk dine_in dan takeaway; hanya ready ke served, tanpa request body. Permintaan berulang atau status lain ditolak 409.',
+        tags: ['Orders'],
+        security: [['sanctum' => []]],
+        parameters: [new OA\PathParameter(name: 'order', required: true, schema: new OA\Schema(type: 'integer'))],
+        responses: [
+            new OA\Response(response: 200, description: 'Pesanan berhasil disajikan', content: new OA\JsonContent(properties: [
+                new OA\Property(property: 'data', type: 'object', properties: [
+                    new OA\Property(property: 'id', type: 'integer'),
+                    new OA\Property(property: 'status', type: 'string', enum: ['served']),
+                ]),
+            ])),
+            new OA\Response(response: 401, description: 'Tidak terautentikasi'),
+            new OA\Response(response: 403, description: 'Akun tidak aktif, bukan runner, atau tidak memiliki manage_orders'),
+            new OA\Response(response: 404, description: 'Pesanan tidak ditemukan'),
+            new OA\Response(response: 409, description: 'Status pesanan bukan ready, termasuk sudah served'),
+        ],
+    )]
+    public function serve(Order $order): JsonResponse
+    {
+        return DB::transaction(function () use ($order): JsonResponse {
+            $updated = DB::table('orders')
+                ->where('id', $order->id)
+                ->where('status', Order::STATUS_READY)
+                ->update(['status' => Order::STATUS_SERVED]);
+
+            abort_unless($updated === 1, 409, 'Pesanan tidak siap untuk disajikan.');
+
+            return response()->json(['data' => ['id' => $order->id, 'status' => Order::STATUS_SERVED]]);
+        }, attempts: 3);
+    }
+
     private function reserveStock(array $items): Collection
     {
         $quantities = [];
