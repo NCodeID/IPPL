@@ -422,7 +422,6 @@ class OrderController extends Controller
         ]);
 
         $baseCountQuery = Order::query()->whereIn('status', $allowedStatuses);
-        $totalOngoing = (clone $baseCountQuery)->count();
 
         $rawCounts = (clone $baseCountQuery)
             ->select('status', DB::raw('count(*) as count'))
@@ -453,7 +452,7 @@ class OrderController extends Controller
 
         return response()->json([
             'counts' => [
-                'total' => $totalOngoing,
+                'total' => array_sum($byStatus),
                 'by_status' => $byStatus,
             ],
             'data' => $orders->getCollection()
