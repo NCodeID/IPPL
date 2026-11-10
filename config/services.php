@@ -2,6 +2,12 @@
 
 return [
 
+    'midtrans' => [
+        'server_key' => env('MIDTRANS_SERVER_KEY'),
+        'merchant_id' => env('MIDTRANS_MERCHANT_ID'),
+        'payment_method_id' => env('MIDTRANS_PAYMENT_METHOD_ID'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

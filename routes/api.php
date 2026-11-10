@@ -54,8 +54,16 @@ Route::match(['post', 'patch', 'delete'], '/tables/{table}/hold', [TableControll
 Route::get('/cashier/checkout', [OrderController::class, 'checkout'])
     ->middleware(['auth:sanctum', 'active', 'role:kasir,admin', 'permission:manage_orders', 'permission:manage_payments']);
 
-Route::post('/orders/{order}/payments', [OrderController::class, 'payCash'])
+Route::post('/orders/{order}/payments', [OrderController::class, 'pay'])
     ->whereNumber('order')
+    ->middleware(['auth:sanctum', 'active', 'role:kasir,admin', 'permission:manage_orders', 'permission:manage_payments']);
+
+Route::post('/payments/midtrans/notifications', [OrderController::class, 'notifyQris']);
+Route::get('/orders/{order}/payments/{payment}', [OrderController::class, 'showPayment'])
+    ->whereNumber(['order', 'payment'])
+    ->middleware(['auth:sanctum', 'active', 'role:kasir,admin', 'permission:manage_orders', 'permission:manage_payments']);
+Route::post('/orders/{order}/payments/{payment}/reconcile', [OrderController::class, 'reconcileQris'])
+    ->whereNumber(['order', 'payment'])
     ->middleware(['auth:sanctum', 'active', 'role:kasir,admin', 'permission:manage_orders', 'permission:manage_payments']);
 
 Route::middleware(['auth:sanctum', 'active', 'permission:manage_orders'])->group(

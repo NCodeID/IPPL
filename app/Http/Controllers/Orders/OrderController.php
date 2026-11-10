@@ -13,10 +13,15 @@ use App\Models\PaymentMethod;
 use App\Models\Product;
 use App\Models\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Encryption\Encrypter;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -808,25 +813,27 @@ class OrderController extends Controller
     #[OA\Post(
         path: '/api/orders/{order}/payments',
         operationId: 'orderCashPayment',
-        summary: 'Pelunasan CASH penuh dengan posting pemasukan bruto atomik',
-        description: 'Kasir/admin aktif dengan manage_orders DAN manage_payments. Hanya served; server membekukan harga item historis dan biaya pada intent pertama, mencatat satu payment success/pemasukan bruto, lalu completed dalam satu transaksi. Pending atau riwayat gagal dengan quote tak terbukti harus direkonsiliasi. Replay 200 hanya untuk fakta CASH/aktor/tender/ledger/completion yang sama dan konsisten. Tidak mendukung QRIS atau split bill.',
+        summary: 'Pembayaran penuh CASH atau QRIS-only Snap Sandbox',
+        description: 'Kasir/admin aktif dengan manage_orders DAN manage_payments. CASH: method=cash dan tendered_amount JSON integer, success/gross/completed atomik. QRIS: hanya method=qris, intent pending dan quote dibekukan sebelum HTTP; success hanya dari verifikasi provider. Replay CASH tetap; QRIS token hanya untuk aktor awal. Riwayat ambigu memblokir CASH. Tanpa split bill atau fee provider asumsi.',
         tags: ['Orders'],
         security: [['sanctum' => []]],
         parameters: [new OA\PathParameter(name: 'order', required: true, schema: new OA\Schema(type: 'integer'))],
         requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
-            type: 'object', required: ['method', 'tendered_amount'], properties: [
-                new OA\Property(property: 'method', type: 'string', enum: ['cash']),
+            type: 'object', required: ['method'], properties: [
+                new OA\Property(property: 'method', type: 'string', enum: ['cash', 'qris']),
                 new OA\Property(property: 'tendered_amount', type: 'integer', minimum: 0, maximum: PHP_INT_MAX, example: 200000, description: 'JSON integer; bukan string numerik, boolean atau pecahan'),
-            ], additionalProperties: false,
+            ], additionalProperties: false, description: 'CASH wajib tendered_amount; QRIS melarang tendered_amount dan seluruh kolom tambahan.',
         )),
         responses: [
-            new OA\Response(response: 201, description: 'Payment success, pemasukan dan completed tersimpan atomik; data.payment berisi id/reference/method/currency/status/amount/tendered_amount/change_amount/paid_at, data.order berisi id/order_number/status/completed_at'),
+            new OA\Response(response: 201, description: 'CASH: success/pemasukan/completed atomik. QRIS: pending dengan quote beku dan checkout token/redirect Sandbox, belum pelunasan. Respons memakai data.payment/order; QRIS menyertakan quote, fee UNKNOWN/null dan reconciliation_required'),
             new OA\Response(response: 200, description: 'Replay setara; fakta hasil asli, tanpa penulisan keuangan baru'),
+            new OA\Response(response: 202, description: 'QRIS pending tanpa token yang terbukti; rekonsiliasi diperlukan, jangan buat charge pengganti'),
             new OA\Response(response: 401, description: 'Unauthenticated'),
             new OA\Response(response: 403, description: 'Inactive, wrong role or missing either permission'),
             new OA\Response(response: 404, description: 'Order not found'),
             new OA\Response(response: 409, description: 'Ineligible/ambiguous/conflicting financial state or unavailable CASH/sales configuration'),
             new OA\Response(response: 422, description: 'Invalid input/extra fields/insufficient tender or unsupported integer amount'),
+            new OA\Response(response: 503, description: 'Konfigurasi Sandbox/provider/pencatatan belum tersedia; pending yang sudah dibuat tidak dibatalkan'),
         ],
     )]
     public function payCash(Request $request, Order $order): JsonResponse
@@ -936,6 +943,328 @@ class OrderController extends Controller
                 'status' => $order->status, 'completed_at' => $order->completed_at?->toISOString(),
             ],
         ]], $status);
+    }
+
+    public function pay(Request $request, Order $order): JsonResponse
+    {
+        if ($request->input('method') === 'qris') {
+            try {
+                return $this->initiateQris($request, $order);
+            } catch (\PDOException) {
+                abort(503, 'Pencatatan belum berhasil; rekonsiliasi diperlukan.');
+            }
+        }
+
+        return $this->payCash($request, $order);
+    }
+
+    private function qrisSettings(): array
+    {
+        $settings = config('services.midtrans', []);
+        $key = config('app.key');
+        abort_unless(is_string($key), 503, 'Konfigurasi Sandbox tidak tersedia.');
+        if (str_starts_with($key, 'base64:')) {
+            $key = base64_decode(substr($key, 7), true);
+        }
+        abort_unless(is_string($key) && Encrypter::supported($key, config('app.cipher')), 503, 'Konfigurasi Sandbox tidak tersedia.');
+        abort_unless(is_string($settings['server_key'] ?? null) && str_starts_with($settings['server_key'], 'SB-Mid-server-')
+            && is_string($settings['merchant_id'] ?? null) && preg_match('/\A[A-Za-z0-9_-]{1,64}\z/', $settings['merchant_id'])
+            && preg_match('/\A[1-9][0-9]*\z/', (string) ($settings['payment_method_id'] ?? '')), 503, 'Konfigurasi Sandbox tidak tersedia.');
+        $settings['quote_key'] = hash_hkdf('sha256', $key, 32, 'pos:midtrans:sandbox:quote:v1');
+
+        return $settings;
+    }
+
+    private function qrisReference(Order $order, Payment $payment, string $nonce, array $settings): string
+    {
+        $quote = array_map(fn (string $field): string => (string) $order->getRawOriginal($field), ['subtotal', 'discount', 'service_charge', 'tax', 'total']);
+        $message = json_encode(['QSB1', 'sandbox', $settings['merchant_id'], (string) $order->id,
+            (string) $payment->payment_method_id, $nonce, ...$quote, (string) $payment->getAttributes()['amount']], JSON_THROW_ON_ERROR);
+        $tag = rtrim(strtr(base64_encode(substr(hash_hmac('sha256', $message, $settings['quote_key'], true), 0, 16)), '+/', '-_'), '=');
+
+        return 'QSB1-'.$nonce.'-'.$tag;
+    }
+
+    private function assertQrisQuote(Order $order, Payment $payment, array $settings): void
+    {
+        $reference = $payment->payment_reference;
+        abort_unless(is_string($reference) && preg_match('/\AQSB1-([A-Za-z0-9_-]{22})-[A-Za-z0-9_-]{22}\z/', $reference, $match)
+            && hash_equals($this->qrisReference($order, $payment, $match[1], $settings), $reference)
+            && (string) $order->getRawOriginal('discount') === '0'
+            && (string) $order->getRawOriginal('total') === (string) $payment->getAttributes()['amount'], 409, 'Quote tidak terbukti atau tidak konsisten; rekonsiliasi diperlukan.');
+    }
+
+    private function withQrisOrder(Order $order, \Closure $action): mixed
+    {
+        $tableId = $order->table_id === null ? null : (int) $order->table_id;
+
+        return DB::transaction(function () use ($order, $tableId, $action): mixed {
+            $table = $tableId === null ? null : Table::query()->whereKey($tableId)->lockForUpdate()->first();
+            $current = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            abort_unless(($current->table_id === null ? null : (int) $current->table_id) === $tableId
+                && ($tableId === null || $table !== null), 409, 'Relasi meja berubah; muat ulang pesanan.');
+
+            return $action($current, $current->payments()->orderBy('id')->lockForUpdate()->get());
+        }, attempts: 3);
+    }
+
+    private function initiateQris(Request $request, Order $order): JsonResponse
+    {
+        if (array_diff(array_keys($request->all()), ['method']) !== []) {
+            throw ValidationException::withMessages(['method' => 'QRIS hanya menerima method.']);
+        }
+        $settings = $this->qrisSettings();
+        $actor = (int) $request->user()->id;
+        [$current, $payment, $created] = $this->withQrisOrder($order, function (Order $current, Collection $attempts) use ($settings, $actor): array {
+            foreach ($attempts as $attempt) {
+                $this->assertQrisQuote($current, $attempt, $settings);
+            }
+            $accepted = $attempts->firstWhere('status', 'success');
+            if ($accepted !== null) {
+                abort_unless((int) $accepted->cashier_id === $actor, 409, 'Percobaan milik kasir lain.');
+                $this->assertQrisSuccess($current, $accepted);
+
+                return [$current, $accepted, false];
+            }
+            abort_unless($current->status === Order::STATUS_SERVED, 409, 'Pesanan belum memenuhi syarat pembayaran.');
+            $pending = $attempts->where('status', 'pending');
+            abort_if($pending->count() > 1, 409, 'Riwayat pembayaran ambigu.');
+            if ($pending->isNotEmpty()) {
+                $payment = $pending->first();
+                abort_unless((int) $payment->cashier_id === $actor, 409, 'Percobaan milik kasir lain.');
+
+                return [$current, $payment, false];
+            }
+            $method = PaymentMethod::query()->whereKey($settings['payment_method_id'])->sharedLock()->first();
+            $category = CashCategory::query()->where('name', 'Penjualan')->where('type', 'in')->where('is_active', true)->sharedLock()->first();
+            abort_unless($method?->type === 'qris' && $method->is_active && $category !== null, 503, 'Metode QRIS/kategori pemasukan tidak valid.');
+            if ($attempts->isEmpty()) {
+                abort_unless((int) $current->discount === 0, 409, 'Diskon lama memerlukan rekonsiliasi.');
+                $subtotal = 0;
+                $limit = intdiv(PHP_INT_MAX - 50, 10);
+                foreach ($current->items()->lockForUpdate()->get() as $item) {
+                    abort_if((int) $item->subtotal > $limit - $subtotal, 422, 'Nilai pesanan melampaui batas integer.');
+                    $subtotal += (int) $item->subtotal;
+                }
+                $bill = $this->previewBill($subtotal, 0);
+                abort_unless($bill['total'] > 0, 422, 'Nilai QRIS harus positif.');
+                DB::table('orders')->where('id', $current->id)->update([
+                    'subtotal' => $subtotal, 'discount' => 0, 'service_charge' => $bill['service_charge'], 'tax' => $bill['tax'], 'updated_at' => now(),
+                ]);
+                $current->refresh();
+                abort_unless($current->total === $bill['total'], 409, 'Total tersimpan tidak sesuai tagihan.');
+            }
+            $payment = new Payment(['order_id' => $current->id, 'payment_method_id' => $method->id, 'cashier_id' => $actor,
+                'amount' => $current->total, 'status' => 'pending']);
+            $nonce = rtrim(strtr(base64_encode(random_bytes(16)), '+/', '-_'), '=');
+            $payment->payment_reference = $this->qrisReference($current, $payment, $nonce, $settings);
+            $payment->save();
+
+            return [$current, $payment, true];
+        });
+        if (! $created) {
+            return $this->qrisResponse($current, $payment, $settings, $payment->status === 'success' || $payment->snap_token !== null ? 200 : 202, true);
+        }
+        try {
+            $response = $this->qrisHttp($settings)->post('https://app.sandbox.midtrans.com/snap/v1/transactions', [
+                'transaction_details' => ['order_id' => $payment->payment_reference, 'gross_amount' => $payment->amount],
+                'enabled_payments' => ['other_qris'], 'customer_imposed_payment_fee' => ['enable' => false],
+            ]);
+        } catch (ConnectionException) {
+            // shortcut: lost responses stay pending; recovery needs a reviewed dispatch protocol.
+            return $this->qrisResponse($current, $payment, $settings, 202);
+        }
+        $token = $response->json('token');
+        if ($response->status() !== 201 || ! is_string($token) || ! preg_match('/\A[A-Za-z0-9_-]{1,255}\z/', $token)
+            || $response->json('redirect_url') !== 'https://app.sandbox.midtrans.com/snap/v2/vtweb/'.$token) {
+            return $this->qrisResponse($current, $payment, $settings, $response->serverError() || $response->status() === 401 ? 503 : 202);
+        }
+
+        return $this->withQrisOrder($current, function (Order $locked, Collection $attempts) use ($payment, $actor, $token, $settings): JsonResponse {
+            $stored = $attempts->firstWhere('id', $payment->id);
+            abort_unless($stored !== null && (int) $stored->cashier_id === $actor && $stored->payment_reference === $payment->payment_reference, 409, 'Percobaan berubah.');
+            $this->assertQrisQuote($locked, $stored, $settings);
+            if ($stored->status === 'success') {
+                $this->assertQrisSuccess($locked, $stored);
+
+                return $this->qrisResponse($locked, $stored, $settings, 200);
+            }
+            abort_unless($stored->status === 'pending' && $locked->status === Order::STATUS_SERVED
+                && ! $attempts->contains('status', 'success') && ($stored->snap_token === null || $stored->snap_token === $token), 409, 'Percobaan berubah.');
+            if ($stored->snap_token === null) {
+                $stored->update(['snap_token' => $token]);
+            }
+
+            return $this->qrisResponse($locked, $stored, $settings, 201, true);
+        });
+    }
+
+    private function qrisHttp(array $settings): PendingRequest
+    {
+        return Http::withBasicAuth($settings['server_key'], '')->acceptJson()->asJson()
+            ->connectTimeout(3)->timeout(10)->withoutRedirecting()->withOptions(['verify' => true]);
+    }
+
+    #[OA\Get(
+        path: '/api/orders/{order}/payments/{payment}', operationId: 'qrisPaymentStatus',
+        summary: 'Status QRIS lokal tanpa HTTP provider atau token checkout', tags: ['Orders'], security: [['sanctum' => []]],
+        parameters: [new OA\PathParameter(name: 'order', required: true, schema: new OA\Schema(type: 'integer')), new OA\PathParameter(name: 'payment', required: true, schema: new OA\Schema(type: 'integer'))],
+        responses: [new OA\Response(response: 200, description: 'data.payment/order/quote; fee UNKNOWN/null, reconciliation_required; kasir/admin aktif dengan kedua permission'), new OA\Response(response: 401, description: 'Guest'), new OA\Response(response: 403, description: 'Akses ditolak'), new OA\Response(response: 404, description: 'Order/payment tidak cocok'), new OA\Response(response: 409, description: 'Provenance tidak valid'), new OA\Response(response: 503, description: 'Konfigurasi tidak tersedia')],
+    )]
+    public function showPayment(Order $order, Payment $payment): JsonResponse
+    {
+        abort_unless((int) $payment->order_id === (int) $order->id, 404);
+
+        return $this->qrisResponse($order, $payment, $this->qrisSettings(), 200);
+    }
+
+    #[OA\Post(
+        path: '/api/orders/{order}/payments/{payment}/reconcile', operationId: 'qrisPaymentReconcile',
+        summary: 'Rekonsiliasi request-driven melalui Status Sandbox, tanpa membuat token/charge', tags: ['Orders'], security: [['sanctum' => []]],
+        parameters: [new OA\PathParameter(name: 'order', required: true, schema: new OA\Schema(type: 'integer')), new OA\PathParameter(name: 'payment', required: true, schema: new OA\Schema(type: 'integer'))],
+        responses: [new OA\Response(response: 200, description: 'Status terverifikasi; success/gross/completed atomik atau no-op'), new OA\Response(response: 202, description: 'Status belum terbukti, termasuk Snap 404'), new OA\Response(response: 401, description: 'Guest'), new OA\Response(response: 403, description: 'Akses ditolak'), new OA\Response(response: 404, description: 'Order/payment tidak cocok'), new OA\Response(response: 409, description: 'Konflik finansial/provenance'), new OA\Response(response: 422, description: 'Rekonsiliasi tidak menerima input pembayaran'), new OA\Response(response: 503, description: 'Provider/pencatatan belum tersedia')],
+    )]
+    public function reconcileQris(Request $request, Order $order, Payment $payment): JsonResponse
+    {
+        abort_unless((int) $payment->order_id === (int) $order->id, 404);
+        if ($request->all() !== []) {
+            throw ValidationException::withMessages(['payment' => 'Rekonsiliasi tidak menerima input pembayaran.']);
+        }
+
+        return $this->verifyQris($order, $payment, $this->qrisSettings(), false);
+    }
+
+    #[OA\Post(
+        path: '/api/payments/midtrans/notifications', operationId: 'qrisMidtransNotification',
+        summary: 'Webhook publik: signature SHA512 dan verifikasi Status Sandbox independen', tags: ['Orders'], security: [],
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(type: 'object', required: ['order_id', 'status_code', 'gross_amount', 'signature_key'], properties: [new OA\Property(property: 'order_id', type: 'string'), new OA\Property(property: 'status_code', type: 'string'), new OA\Property(property: 'gross_amount', type: 'string'), new OA\Property(property: 'signature_key', type: 'string')], additionalProperties: true)),
+        responses: [new OA\Response(response: 200, description: 'Status tersimpan atau duplikat terverifikasi'), new OA\Response(response: 202, description: 'State ambigu tetap aman; tinjau manual'), new OA\Response(response: 400, description: 'Payload tidak valid'), new OA\Response(response: 403, description: 'Signature tidak valid'), new OA\Response(response: 404, description: 'Reference tidak ditemukan'), new OA\Response(response: 409, description: 'Konflik integritas'), new OA\Response(response: 503, description: 'Verifikasi/pencatatan gagal; retry diperlukan')],
+    )]
+    public function notifyQris(Request $request): JsonResponse
+    {
+        $settings = $this->qrisSettings();
+        try {
+            // Request input has already passed TrimStrings; signatures require the original values.
+            $payload = json_decode($request->getContent(), true, 64, JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            abort(400, 'Notifikasi tidak valid.');
+        }
+        abort_unless(is_array($payload), 400, 'Notifikasi tidak valid.');
+        foreach (['order_id', 'status_code', 'gross_amount', 'signature_key'] as $field) {
+            abort_unless(is_string($payload[$field] ?? null) && strlen($payload[$field]) <= 255, 400, 'Notifikasi tidak valid.');
+        }
+        abort_unless(preg_match('/\A[0-9]{3}\z/', $payload['status_code'])
+            && preg_match('/\A[0-9]+(?:\.[0-9]{1,2})?\z/', $payload['gross_amount']), 400, 'Notifikasi tidak valid.');
+        $signature = hash('sha512', $payload['order_id'].$payload['status_code'].$payload['gross_amount'].$settings['server_key']);
+        abort_unless(hash_equals($signature, $payload['signature_key']), 403, 'Signature tidak valid.');
+        $payment = Payment::query()->where('payment_reference', $payload['order_id'])->firstOrFail();
+        abort_unless($payment->payment_reference === $payload['order_id'], 404);
+        abort_unless(preg_match('/\A(0|[1-9][0-9]*)(?:\.0{1,2})?\z/', $payload['gross_amount'], $amount)
+            && $amount[1] === (string) $payment->getRawOriginal('amount'), 409, 'Nominal notifikasi tidak cocok.');
+
+        return $this->verifyQris($payment->order, $payment, $settings, true);
+    }
+
+    private function verifyQris(Order $order, Payment $payment, array $settings, bool $notification): JsonResponse
+    {
+        $this->assertQrisQuote($order, $payment, $settings);
+        try {
+            $response = $this->qrisHttp($settings)->get('https://api.sandbox.midtrans.com/v2/'.$payment->payment_reference.'/status');
+        } catch (ConnectionException) {
+            abort(503, 'Verifikasi provider belum tersedia.');
+        }
+        if ($response->status() === 404 || ($response->successful() && $response->json('status_code') === '404')) {
+            abort_if($notification, 503, 'Status provider belum tersedia.');
+
+            return $this->qrisResponse($order->fresh(), $payment->fresh(), $settings, 202);
+        }
+        abort_unless($response->successful(), 503, 'Verifikasi provider belum tersedia.');
+        $data = $response->json();
+        abort_unless(is_array($data), 503, 'Respons provider tidak valid.');
+        $gross = $data['gross_amount'] ?? null;
+        abort_unless(is_string($gross) && preg_match('/\A(0|[1-9][0-9]*)(?:\.0{1,2})?\z/', $gross, $match)
+            && $match[1] === (string) $payment->getRawOriginal('amount')
+            && ($data['order_id'] ?? null) === $payment->payment_reference && ($data['currency'] ?? null) === 'IDR'
+            && ($data['payment_type'] ?? null) === 'qris'
+            && (! array_key_exists('merchant_id', $data) || $data['merchant_id'] === $settings['merchant_id'])
+            && (! array_key_exists('fraud_status', $data) || $data['fraud_status'] === 'accept'), 409, 'Fakta provider tidak cocok; rekonsiliasi diperlukan.');
+        $state = $data['transaction_status'] ?? null;
+        abort_if($state === 'settlement' && ($data['status_code'] ?? null) !== '200', 409, 'Status provider tidak konsisten.');
+        if (! in_array($state, ['settlement', 'expire', 'pending'], true)) {
+            Log::warning('QRIS requires manual reconciliation.', ['payment_id' => $payment->id, 'order_id' => $order->id, 'reason' => 'unsupported_provider_state']);
+        }
+        try {
+            return $this->withQrisOrder($order, function (Order $current, Collection $attempts) use ($payment, $settings, $state): JsonResponse {
+                $stored = $attempts->firstWhere('id', $payment->id);
+                abort_unless($stored !== null && $stored->payment_reference === $payment->payment_reference, 409, 'Percobaan berubah.');
+                foreach ($attempts as $attempt) {
+                    $this->assertQrisQuote($current, $attempt, $settings);
+                }
+                if ($stored->status === 'success') {
+                    $this->assertQrisSuccess($current, $stored);
+                    if ($state !== 'settlement') {
+                        Log::warning('QRIS requires manual reconciliation.', ['payment_id' => $stored->id, 'order_id' => $current->id, 'reason' => 'accepted_state_conflict']);
+                    }
+                    abort_unless($state === 'settlement', 409, 'Status pembayaran diterima bertentangan; tinjau manual.');
+
+                    return $this->qrisResponse($current, $stored, $settings, 200);
+                }
+                if ($attempts->contains('status', 'success') || $attempts->where('status', 'pending')->where('id', '!=', $stored->id)->isNotEmpty()) {
+                    Log::warning('QRIS requires manual reconciliation.', ['payment_id' => $stored->id, 'order_id' => $current->id, 'reason' => 'competing_attempt_conflict']);
+                    abort(409, 'Riwayat pembayaran bertentangan.');
+                }
+                abort_unless($current->status === Order::STATUS_SERVED, 409, 'Status pesanan berubah.');
+                if ($state === 'settlement') {
+                    $method = PaymentMethod::query()->whereKey($stored->payment_method_id)->sharedLock()->first();
+                    $category = CashCategory::query()->where('name', 'Penjualan')->where('type', 'in')->sharedLock()->first();
+                    abort_unless($method?->type === 'qris' && $category !== null, 503, 'Konfigurasi pencatatan tidak valid.');
+                    abort_if(CashTransaction::query()->where('payment_id', $stored->id)->lockForUpdate()->exists(), 409, 'Pemasukan lama tidak konsisten.');
+                    $paidAt = now();
+                    $stored->update(['status' => 'success', 'paid_at' => $paidAt]);
+                    CashTransaction::create(['cash_category_id' => $category->id, 'payment_id' => $stored->id,
+                        'recorded_by' => $stored->cashier_id, 'amount' => $stored->amount,
+                        'description' => 'Pembayaran QRIS '.$current->order_number, 'transacted_at' => $paidAt]);
+                    DB::table('orders')->where('id', $current->id)->update(['status' => Order::STATUS_COMPLETED, 'completed_at' => $paidAt, 'updated_at' => $paidAt]);
+                } elseif ($state === 'expire' && $stored->status === 'pending') {
+                    // Only current whole-order expiry closes a session; deny/cancel/failure may be subattempts.
+                    $stored->update(['status' => 'expired']);
+                }
+
+                return $this->qrisResponse($current->fresh(), $stored->fresh(), $settings, in_array($state, ['settlement', 'expire', 'pending'], true) ? 200 : 202);
+            });
+        } catch (\PDOException) {
+            abort(503, 'Pencatatan belum berhasil; rekonsiliasi diperlukan.');
+        }
+    }
+
+    private function assertQrisSuccess(Order $order, Payment $payment): void
+    {
+        $method = PaymentMethod::query()->whereKey($payment->payment_method_id)->sharedLock()->first();
+        $ledger = CashTransaction::query()->where('payment_id', $payment->id)->lockForUpdate()->first();
+        $category = $ledger === null ? null : CashCategory::query()->whereKey($ledger->cash_category_id)->sharedLock()->first();
+        abort_unless($method?->type === 'qris' && $order->status === Order::STATUS_COMPLETED && $order->completed_at !== null && $payment->paid_at !== null
+            && $order->completed_at->equalTo($payment->paid_at) && $ledger !== null && $category?->type === 'in'
+            && (string) $ledger->getRawOriginal('amount') === (string) $payment->getRawOriginal('amount')
+            && $ledger->recorded_by === $payment->cashier_id && $ledger->fee_payment_id === null && $ledger->purchase_request_id === null
+            && $ledger->transacted_at->equalTo($payment->paid_at), 409, 'Fakta pembayaran diterima tidak konsisten.');
+    }
+
+    private function qrisResponse(Order $order, Payment $payment, array $settings, int $status, bool $checkout = false): JsonResponse
+    {
+        $this->assertQrisQuote($order, $payment, $settings);
+        $data = [
+            'payment' => ['id' => $payment->id, 'reference' => $payment->payment_reference, 'method' => 'qris', 'currency' => 'IDR',
+                'status' => $payment->status, 'amount' => $payment->amount, 'paid_at' => $payment->paid_at?->toISOString()],
+            'order' => ['id' => $order->id, 'order_number' => $order->order_number, 'status' => $order->status, 'completed_at' => $order->completed_at?->toISOString()],
+            'quote' => ['kind' => 'frozen', 'subtotal' => $order->subtotal, 'discount' => $order->discount, 'service_charge' => $order->service_charge, 'tax' => $order->tax, 'total' => $order->total],
+            'fee' => ['status' => 'UNKNOWN', 'amount' => null], 'reconciliation_required' => $payment->status === 'pending' || $status === 202,
+        ];
+        if ($checkout && $payment->status === 'pending' && $payment->snap_token !== null) {
+            abort_unless(preg_match('/\A[A-Za-z0-9_-]{1,255}\z/', $payment->snap_token), 409, 'Token lama tidak valid.');
+            $data['checkout'] = ['snap_token' => $payment->snap_token, 'redirect_url' => 'https://app.sandbox.midtrans.com/snap/v2/vtweb/'.$payment->snap_token];
+        }
+
+        return response()->json(['data' => $data], $status)->header('Cache-Control', 'private, no-store');
     }
 
     private function previewBill(int $itemSubtotal, int $discount): array
