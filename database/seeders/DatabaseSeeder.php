@@ -202,9 +202,9 @@ class DatabaseSeeder extends Seeder
         }
 
         $paymentMethods = [
-            ['name' => 'Cash - Rupiah', 'type' => 'cash', 'is_active' => true],
-            ['name' => 'QRIS - BCA', 'type' => 'qris', 'is_active' => true],
-            ['name' => 'Transfer - BCA', 'type' => 'transfer', 'is_active' => true],
+            ['name' => 'Rupiah', 'type' => 'cash', 'is_active' => true],
+            ['name' => 'QRIS', 'type' => 'qris', 'is_active' => true],
+            ['name' => 'Transfer', 'type' => 'transfer', 'is_active' => true],
             ['name' => 'Debit Card', 'type' => 'card', 'is_active' => true],
         ];
 
