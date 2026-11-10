@@ -17,8 +17,8 @@ use OpenApi\Attributes as OA;
     securityScheme: 'sanctum',
     type: 'http',
     scheme: 'bearer',
-    bearerFormat: 'JWT',
-    description: 'Enter token in format (Bearer <token>)',
+    bearerFormat: 'Sanctum personal access token',
+    description: 'Enter the Sanctum token only; Swagger adds the Bearer prefix.',
 )]
 abstract class Controller
 {
