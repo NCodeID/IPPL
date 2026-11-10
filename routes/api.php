@@ -54,6 +54,10 @@ Route::match(['post', 'patch', 'delete'], '/tables/{table}/hold', [TableControll
 Route::get('/cashier/checkout', [OrderController::class, 'checkout'])
     ->middleware(['auth:sanctum', 'active', 'role:kasir,admin', 'permission:manage_orders', 'permission:manage_payments']);
 
+Route::post('/orders/{order}/payments', [OrderController::class, 'payCash'])
+    ->whereNumber('order')
+    ->middleware(['auth:sanctum', 'active', 'role:kasir,admin', 'permission:manage_orders', 'permission:manage_payments']);
+
 Route::middleware(['auth:sanctum', 'active', 'permission:manage_orders'])->group(
     function () {
         Route::get('/categories', [CategoryController::class, 'index']);

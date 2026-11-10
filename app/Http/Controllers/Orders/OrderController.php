@@ -3,9 +3,13 @@
 namespace App\Http\Controllers\Orders;
 
 use App\Http\Controllers\Controller;
+use App\Models\CashCategory;
+use App\Models\CashTransaction;
 use App\Models\Ingredient;
 use App\Models\Order;
 use App\Models\OrderItem;
+use App\Models\Payment;
+use App\Models\PaymentMethod;
 use App\Models\Product;
 use App\Models\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -799,6 +803,139 @@ class OrderController extends Controller
             'is_orderable' => true,
             'unavailable_reason' => null,
         ];
+    }
+
+    #[OA\Post(
+        path: '/api/orders/{order}/payments',
+        operationId: 'orderCashPayment',
+        summary: 'Pelunasan CASH penuh dengan posting pemasukan bruto atomik',
+        description: 'Kasir/admin aktif dengan manage_orders DAN manage_payments. Hanya served; server membekukan harga item historis dan biaya pada intent pertama, mencatat satu payment success/pemasukan bruto, lalu completed dalam satu transaksi. Pending atau riwayat gagal dengan quote tak terbukti harus direkonsiliasi. Replay 200 hanya untuk fakta CASH/aktor/tender/ledger/completion yang sama dan konsisten. Tidak mendukung QRIS atau split bill.',
+        tags: ['Orders'],
+        security: [['sanctum' => []]],
+        parameters: [new OA\PathParameter(name: 'order', required: true, schema: new OA\Schema(type: 'integer'))],
+        requestBody: new OA\RequestBody(required: true, content: new OA\JsonContent(
+            type: 'object', required: ['method', 'tendered_amount'], properties: [
+                new OA\Property(property: 'method', type: 'string', enum: ['cash']),
+                new OA\Property(property: 'tendered_amount', type: 'integer', minimum: 0, maximum: PHP_INT_MAX, example: 200000, description: 'JSON integer; bukan string numerik, boolean atau pecahan'),
+            ], additionalProperties: false,
+        )),
+        responses: [
+            new OA\Response(response: 201, description: 'Payment success, pemasukan dan completed tersimpan atomik; data.payment berisi id/reference/method/currency/status/amount/tendered_amount/change_amount/paid_at, data.order berisi id/order_number/status/completed_at'),
+            new OA\Response(response: 200, description: 'Replay setara; fakta hasil asli, tanpa penulisan keuangan baru'),
+            new OA\Response(response: 401, description: 'Unauthenticated'),
+            new OA\Response(response: 403, description: 'Inactive, wrong role or missing either permission'),
+            new OA\Response(response: 404, description: 'Order not found'),
+            new OA\Response(response: 409, description: 'Ineligible/ambiguous/conflicting financial state or unavailable CASH/sales configuration'),
+            new OA\Response(response: 422, description: 'Invalid input/extra fields/insufficient tender or unsupported integer amount'),
+        ],
+    )]
+    public function payCash(Request $request, Order $order): JsonResponse
+    {
+        $validated = $request->validate([
+            'method' => ['required', 'string', Rule::in(['cash'])],
+            'tendered_amount' => ['required', 'integer:strict', 'min:0', 'max:'.PHP_INT_MAX],
+        ]);
+        $unexpected = array_diff(array_keys($request->all()), ['method', 'tendered_amount']);
+        if ($unexpected !== []) {
+            throw ValidationException::withMessages(array_fill_keys($unexpected, 'Kolom ini tidak diperbolehkan.'));
+        }
+        $tender = $validated['tendered_amount'];
+        $actorId = (int) $request->user()->id;
+        $tableId = $order->table_id === null ? null : (int) $order->table_id;
+
+        return DB::transaction(function () use ($order, $tableId, $tender, $actorId): JsonResponse {
+            $table = $tableId === null ? null : Table::query()->whereKey($tableId)->lockForUpdate()->first();
+            $current = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $currentTableId = $current->table_id === null ? null : (int) $current->table_id;
+            abort_unless($currentTableId === $tableId && ($tableId === null || $table !== null), 409, 'Relasi meja berubah; muat ulang pesanan.');
+            $attempts = $current->payments()->orderBy('id')->lockForUpdate()->get();
+            abort_if($attempts->contains('status', 'pending'), 409, 'Percobaan pembayaran belum terselesaikan; rekonsiliasi diperlukan.');
+            $accepted = $attempts->firstWhere('status', 'success');
+
+            if ($accepted !== null) {
+                $method = PaymentMethod::query()->whereKey($accepted->payment_method_id)->sharedLock()->first();
+                $ledger = CashTransaction::query()->where('payment_id', $accepted->id)->lockForUpdate()->first();
+                $category = $ledger === null ? null : CashCategory::query()->whereKey($ledger->cash_category_id)->sharedLock()->first();
+                $due = (int) $accepted->amount;
+                abort_unless(
+                    $current->status === Order::STATUS_COMPLETED && $current->completed_at !== null
+                    && $accepted->paid_at !== null && $accepted->paid_at->equalTo($current->completed_at)
+                    && $method?->type === 'cash' && (int) $accepted->cashier_id === $actorId
+                    && (string) $accepted->getRawOriginal('tendered_amount') === (string) $tender && $tender >= $due
+                    && (string) $accepted->getRawOriginal('amount') === (string) $due
+                    && (string) $current->getRawOriginal('total') === (string) $due
+                    && (string) $accepted->getRawOriginal('change_amount') === (string) ($tender - $due)
+                    && filled($accepted->payment_reference)
+                    && $ledger !== null && $category?->type === 'in'
+                    && (string) $ledger->getRawOriginal('amount') === (string) $due
+                    && (int) $ledger->recorded_by === $actorId && $ledger->fee_payment_id === null
+                    && $ledger->purchase_request_id === null && $ledger->transacted_at->equalTo($accepted->paid_at),
+                    409, 'Pembayaran yang diterima tidak cocok dengan replay atau fakta keuangannya tidak konsisten.',
+                );
+
+                return $this->cashPaymentResponse($current, $accepted, 200);
+            }
+
+            abort_unless($current->status === Order::STATUS_SERVED, 409, 'Pesanan belum memenuhi syarat pembayaran.');
+            abort_unless((int) $current->discount === 0, 409, 'Diskon lama memerlukan peninjauan; pembayaran tidak diubah.');
+            abort_if($attempts->isNotEmpty(), 409, 'Quote dari percobaan lama tidak terbukti beku; rekonsiliasi diperlukan.');
+            $subtotal = 0;
+            $limit = intdiv(PHP_INT_MAX - 50, 10);
+            foreach ($current->items()->lockForUpdate()->get() as $item) {
+                $lineSubtotal = (int) $item->subtotal;
+                if ($lineSubtotal > $limit - $subtotal) {
+                    throw ValidationException::withMessages(['items' => 'Nilai pesanan melampaui batas perhitungan integer.']);
+                }
+                $subtotal += $lineSubtotal;
+            }
+            $bill = $this->previewBill($subtotal, 0);
+            if ($tender < $bill['total']) {
+                throw ValidationException::withMessages(['tendered_amount' => 'Uang diterima kurang dari total tagihan.']);
+            }
+            $method = PaymentMethod::query()->where('type', 'cash')->where('is_active', true)->orderBy('id')->sharedLock()->first();
+            $category = CashCategory::query()->where('name', 'Penjualan')->where('type', 'in')->where('is_active', true)->sharedLock()->first();
+            abort_if($method === null || $category === null, 409, 'Metode CASH atau kategori Penjualan tidak tersedia/valid.');
+
+            // Avoid normalizing unrelated legacy attributes through Order::saving.
+            DB::table('orders')->where('id', $current->id)->update([
+                'subtotal' => $subtotal, 'discount' => 0, 'service_charge' => $bill['service_charge'],
+                'tax' => $bill['tax'], 'updated_at' => now(),
+            ]);
+            $current->refresh();
+            abort_unless((int) $current->total === $bill['total'], 409, 'Total tersimpan tidak sesuai tagihan server.');
+            $paidAt = now();
+            $payment = Payment::create([
+                'order_id' => $current->id, 'payment_method_id' => $method->id, 'cashier_id' => $actorId,
+                'amount' => $bill['total'], 'tendered_amount' => $tender, 'change_amount' => $tender - $bill['total'],
+                'status' => 'success', 'payment_reference' => 'CASH-'.Str::uuid(), 'paid_at' => $paidAt,
+            ]);
+            CashTransaction::create([
+                'cash_category_id' => $category->id, 'payment_id' => $payment->id, 'recorded_by' => $actorId,
+                'amount' => $bill['total'], 'description' => 'Pembayaran tunai '.$current->order_number,
+                'transacted_at' => $paidAt,
+            ]);
+            DB::table('orders')->where('id', $current->id)->update([
+                'status' => Order::STATUS_COMPLETED, 'completed_at' => $paidAt, 'updated_at' => $paidAt,
+            ]);
+
+            return $this->cashPaymentResponse($current->fresh(), $payment->fresh(), 201);
+        }, attempts: 3);
+    }
+
+    private function cashPaymentResponse(Order $order, Payment $payment, int $status): JsonResponse
+    {
+        return response()->json(['data' => [
+            'payment' => [
+                'id' => $payment->id, 'reference' => $payment->payment_reference,
+                'method' => 'cash', 'currency' => 'IDR', 'status' => $payment->status,
+                'amount' => $payment->amount, 'tendered_amount' => $payment->tendered_amount,
+                'change_amount' => $payment->change_amount, 'paid_at' => $payment->paid_at?->toISOString(),
+            ],
+            'order' => [
+                'id' => $order->id, 'order_number' => $order->order_number,
+                'status' => $order->status, 'completed_at' => $order->completed_at?->toISOString(),
+            ],
+        ]], $status);
     }
 
     private function previewBill(int $itemSubtotal, int $discount): array
