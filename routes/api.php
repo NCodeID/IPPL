@@ -59,6 +59,13 @@ Route::post('/orders/{order}/payments', [OrderController::class, 'pay'])
     ->middleware(['auth:sanctum', 'active', 'role:kasir,admin', 'permission:manage_orders', 'permission:manage_payments']);
 
 Route::post('/payments/midtrans/notifications', [OrderController::class, 'notifyQris']);
+Route::middleware(['auth:sanctum', 'active', 'role:kasir,admin,akuntan', 'permission:manage_orders', 'permission:manage_payments'])->group(function () {
+    Route::get('/payments/history', [OrderController::class, 'paymentHistory']);
+    Route::get('/payments/{payment}/receipt', [OrderController::class, 'paymentReceipt'])->whereNumber('payment');
+    Route::get('/finance/summary', [OrderController::class, 'financeSummary'])->middleware('permission:manage_cash_transactions');
+    Route::get('/finance/transactions', [OrderController::class, 'financeTransactions'])->middleware('permission:manage_cash_transactions');
+});
+
 Route::get('/orders/{order}/payments/{payment}', [OrderController::class, 'showPayment'])
     ->whereNumber(['order', 'payment'])
     ->middleware(['auth:sanctum', 'active', 'role:kasir,admin', 'permission:manage_orders', 'permission:manage_payments']);

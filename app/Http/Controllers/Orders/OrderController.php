@@ -12,12 +12,15 @@ use App\Models\Payment;
 use App\Models\PaymentMethod;
 use App\Models\Product;
 use App\Models\Table;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Encryption\Encrypter;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -1265,6 +1268,298 @@ class OrderController extends Controller
         }
 
         return response()->json(['data' => $data], $status)->header('Cache-Control', 'private, no-store');
+    }
+
+    #[OA\Get(
+        path: '/api/payments/history', operationId: 'paymentAttemptHistory', tags: ['Orders'], security: [['sanctum' => []]],
+        summary: 'Histori seluruh attempt pembayaran, tanpa token atau HTTP provider',
+        description: 'Kasir/admin/akuntan aktif dengan manage_orders DAN manage_payments. Filter tanggal berdasarkan created_at dalam timezone aplikasi; tanggal akhir inklusif. Legacy method hanya dibaca, bukan diaktifkan. data/links/meta dengan integrity CONSISTENT/CONFLICT/NOT_SETTLED.',
+        parameters: [new OA\QueryParameter(name: 'status', schema: new OA\Schema(type: 'string', enum: ['pending', 'success', 'failed', 'expired'])), new OA\QueryParameter(name: 'method', schema: new OA\Schema(type: 'string', enum: ['cash', 'qris', 'transfer', 'card'])), new OA\QueryParameter(name: 'order_id', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\QueryParameter(name: 'date_from', schema: new OA\Schema(type: 'string', format: 'date')), new OA\QueryParameter(name: 'date_to', schema: new OA\Schema(type: 'string', format: 'date')), new OA\QueryParameter(name: 'page', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\QueryParameter(name: 'per_page', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 15))],
+        responses: [new OA\Response(response: 200, description: 'Attempt tersimpan dan label relasional saat ini, pagination deterministik'), new OA\Response(response: 401, description: 'Guest'), new OA\Response(response: 403, description: 'Role/akun/permission ditolak'), new OA\Response(response: 409, description: 'Nilai melampaui integer yang didukung'), new OA\Response(response: 422, description: 'Filter tidak valid')],
+    )]
+    public function paymentHistory(Request $request): JsonResponse
+    {
+        $filters = $this->financialFilters($request, [
+            'status' => ['nullable', Rule::in(['pending', 'success', 'failed', 'expired'])],
+            'method' => ['nullable', Rule::in(['cash', 'qris', 'transfer', 'card'])],
+            'order_id' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        return DB::transaction(function () use ($filters): JsonResponse {
+            $query = $this->paymentFacts();
+            foreach (['status' => 'f.status', 'method' => 'f.method_type', 'order_id' => 'f.order_id'] as $input => $column) {
+                if (isset($filters[$input])) {
+                    $query->where($column, $filters[$input]);
+                }
+            }
+            $this->financialDates($query, 'f.created_at', $filters);
+            $page = $query->orderByDesc('f.created_at')->orderByDesc('f.id')->paginate($filters['per_page'] ?? self::DEFAULT_PER_PAGE);
+
+            return $this->financialPage($page, $page->getCollection()->map(fn (object $row): array => $this->paymentReadRow($row))->all(), $filters);
+        });
+    }
+
+    #[OA\Get(
+        path: '/api/payments/{payment}/receipt', operationId: 'paymentRelationalReceipt', tags: ['Orders'], security: [['sanctum' => []]],
+        summary: 'Receipt relasional dari success/order/item/gross ledger yang konsisten',
+        description: 'Kasir/admin/akuntan aktif dengan manage_orders DAN manage_payments. Monetary dari nilai historis tersimpan, bukan preview/menu saat ini; label tidak immutable. Tidak memverifikasi ulang provider, tidak membekukan/memperbaiki data. Fee QRIS UNKNOWN meskipun ada link/description yang belum terbukti final.',
+        parameters: [new OA\PathParameter(name: 'payment', required: true, schema: new OA\Schema(type: 'integer'))],
+        responses: [new OA\Response(response: 200, description: 'data.order/items/totals/payment/labels/verification_basis/fee; CASH menyertakan tender/change'), new OA\Response(response: 401, description: 'Guest'), new OA\Response(response: 403, description: 'Akses ditolak'), new OA\Response(response: 404, description: 'Payment tidak ditemukan'), new OA\Response(response: 409, description: 'Belum success, fakta tidak konsisten atau nilai tidak dapat direpresentasikan')],
+    )]
+    public function paymentReceipt(Payment $payment): JsonResponse
+    {
+        return DB::transaction(function () use ($payment): JsonResponse {
+            $row = $this->paymentFacts()->where('f.id', $payment->id)->first();
+            abort_if($row === null, 404);
+            abort_unless((bool) $row->settlement_consistent, 409, 'Receipt memerlukan success dan fakta order/item/ledger yang konsisten.');
+            $items = DB::table('order_items as i')->leftJoin('products as p', 'p.id', '=', 'i.product_id')
+                ->leftJoin('categories as c', 'c.id', '=', 'p.category_id')->where('i.order_id', $row->order_id)->orderBy('i.id')
+                ->get(['i.product_id', 'i.unit_price', 'i.quantity', 'i.subtotal', 'p.name as product_name', 'c.name as category_name'])
+                ->map(fn (object $item): array => [
+                    'product_id' => (int) $item->product_id, 'product_name' => $item->product_name, 'category_name' => $item->category_name,
+                    'unit_price' => $this->financialInteger($item->unit_price), 'quantity' => (int) $item->quantity, 'subtotal' => $this->financialInteger($item->subtotal),
+                ])->all();
+            $facts = $this->paymentReadRow($row);
+            $facts['tendered_amount'] = $row->method_type === 'cash' ? $this->financialInteger($row->tendered_amount) : null;
+            $facts['change_amount'] = $row->method_type === 'cash' ? $this->financialInteger($row->change_amount) : null;
+            unset($facts['order'], $facts['integrity']);
+
+            return response()->json(['data' => [
+                'order' => ['id' => (int) $row->order_id, 'order_number' => $row->order_number, 'customer_name' => $row->customer_name,
+                    'order_type' => $row->order_type, 'created_at' => $this->financialTime($row->order_created_at),
+                    'completed_at' => $this->financialTime($row->completed_at),
+                    'table' => $row->table_id === null ? null : ['id' => (int) $row->table_id, 'number' => $row->table_number]],
+                'items' => $items, 'totals' => ['currency' => 'IDR', 'subtotal' => $this->financialInteger($row->subtotal),
+                    'discount' => $this->financialInteger($row->discount), 'service_charge' => $this->financialInteger($row->service_charge),
+                    'tax' => $this->financialInteger($row->tax), 'total' => $this->financialInteger($row->total)],
+                'payment' => $facts, 'labels' => ['source' => 'current_retained_relations', 'historically_immutable' => false],
+                'verification_basis' => 'recorded_success_order_items_gross_ledger',
+                'fee' => ['status' => $row->method_type === 'qris' ? 'UNKNOWN' : 'NOT_APPLICABLE', 'amount' => null],
+            ]])->header('Cache-Control', 'private, no-store');
+        });
+    }
+
+    #[OA\Get(
+        path: '/api/finance/transactions', operationId: 'financialLedgerHistory', tags: ['Orders'], security: [['sanctum' => []]],
+        summary: 'Ledger relasional termasuk kategori nonaktif dan kedua link pembayaran',
+        description: 'Role kasir/admin/akuntan aktif; manage_orders DAN manage_payments DAN manage_cash_transactions terpisah. Filter tanggal memakai transacted_at/timezone aplikasi, tanggal akhir inklusif. data/links/meta; link_consistent adalah struktur/pencatatan, bukan bukti fee final. Tidak menampilkan description/provider secrets.',
+        parameters: [new OA\QueryParameter(name: 'category_id', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\QueryParameter(name: 'direction', schema: new OA\Schema(type: 'string', enum: ['in', 'out'])), new OA\QueryParameter(name: 'payment_id', description: 'Mencocokkan payment_id ATAU fee_payment_id', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\QueryParameter(name: 'date_from', schema: new OA\Schema(type: 'string', format: 'date')), new OA\QueryParameter(name: 'date_to', schema: new OA\Schema(type: 'string', format: 'date')), new OA\QueryParameter(name: 'page', schema: new OA\Schema(type: 'integer', minimum: 1)), new OA\QueryParameter(name: 'per_page', schema: new OA\Schema(type: 'integer', minimum: 1, maximum: 100, default: 15))],
+        responses: [new OA\Response(response: 200, description: 'Gross payment, fee tercatat, OTHER atau CONFLICT; kategori/aktor historis nullable'), new OA\Response(response: 401, description: 'Guest'), new OA\Response(response: 403, description: 'Akses ditolak'), new OA\Response(response: 409, description: 'Nilai melampaui integer yang didukung'), new OA\Response(response: 422, description: 'Filter tidak valid')],
+    )]
+    public function financeTransactions(Request $request): JsonResponse
+    {
+        $filters = $this->financialFilters($request, [
+            'category_id' => ['nullable', 'integer', 'min:1'], 'payment_id' => ['nullable', 'integer', 'min:1'],
+            'direction' => ['nullable', Rule::in(['in', 'out'])],
+        ]);
+
+        return DB::transaction(function () use ($filters): JsonResponse {
+            $query = $this->ledgerFacts();
+            foreach (['category_id' => 'l.cash_category_id', 'direction' => 'l.direction'] as $input => $column) {
+                if (isset($filters[$input])) {
+                    $query->where($column, $filters[$input]);
+                }
+            }
+            if (isset($filters['payment_id'])) {
+                $query->where(fn (QueryBuilder $links): QueryBuilder => $links->where('l.payment_id', $filters['payment_id'])->orWhere('l.fee_payment_id', $filters['payment_id']));
+            }
+            $this->financialDates($query, 'l.transacted_at', $filters);
+            $page = $query->orderByDesc('l.transacted_at')->orderByDesc('l.id')->paginate($filters['per_page'] ?? self::DEFAULT_PER_PAGE);
+            $data = $page->getCollection()->map(fn (object $row): array => [
+                'id' => (int) $row->id, 'amount' => $this->financialInteger($row->amount), 'transacted_at' => $this->financialTime($row->transacted_at),
+                'category' => ['id' => (int) $row->cash_category_id, 'name' => $row->category_name, 'type' => $row->direction, 'is_active' => (bool) $row->category_active],
+                'link_kind' => $row->link_kind, 'link_consistent' => (bool) $row->link_consistent,
+                'payment' => $row->payment_id === null ? null : ['id' => (int) $row->payment_id, 'reference' => $row->payment_reference, 'status' => $row->payment_status],
+                'fee_payment' => $row->fee_payment_id === null ? null : ['id' => (int) $row->fee_payment_id, 'reference' => $row->fee_reference, 'status' => $row->fee_status],
+                'fee_verification' => $row->fee_payment_id === null ? 'NOT_APPLICABLE' : 'UNKNOWN',
+                'purchase_request_id' => $row->purchase_request_id === null ? null : (int) $row->purchase_request_id,
+                'recorder' => $row->recorded_by === null ? null : ['id' => (int) $row->recorded_by, 'name' => $row->recorder_name],
+            ])->all();
+
+            return $this->financialPage($page, $data, $filters);
+        });
+    }
+
+    #[OA\Get(
+        path: '/api/finance/summary', operationId: 'financialRecordedSummary', tags: ['Orders'], security: [['sanctum' => []]],
+        summary: 'Gross CASH/QRIS, ledger kategori, net tercatat/provisional dan anomali',
+        description: 'Role kasir/admin/akuntan aktif dengan ketiga permission terpisah: manage_orders, manage_payments, manage_cash_transactions. Sales berdasarkan paid_at (anomali tanpa paid_at memakai created_at); ledger memakai transacted_at. Bukan saldo bank/payout. Fee final tanpa bukti tetap UNKNOWN, final_fee_adjusted null bila provisional. Tanggal dalam timezone aplikasi.',
+        parameters: [new OA\QueryParameter(name: 'date_from', required: true, schema: new OA\Schema(type: 'string', format: 'date')), new OA\QueryParameter(name: 'date_to', required: true, schema: new OA\Schema(type: 'string', format: 'date'))],
+        responses: [new OA\Response(response: 200, description: 'data.recorded_success/accepted_sales/ledger/categories/provider_fees/net/anomalies/date_basis'), new OA\Response(response: 401, description: 'Guest'), new OA\Response(response: 403, description: 'Akses ditolak'), new OA\Response(response: 409, description: 'Agregat di luar rentang integer'), new OA\Response(response: 422, description: 'Tanggal wajib/invalid/terbalik')],
+    )]
+    public function financeSummary(Request $request): JsonResponse
+    {
+        $filters = $this->financialFilters($request, [], true);
+
+        return DB::transaction(function () use ($filters): JsonResponse {
+            $payments = $this->paymentFacts()->where('f.status', 'success');
+            $this->financialDates($payments, 'f.paid_at', $filters, 'f.created_at');
+            foreach (['cash', 'qris'] as $method) {
+                $payments->selectRaw("COUNT(CASE WHEN method_type = ? THEN 1 END) AS recorded_{$method}_count", [$method])
+                    ->selectRaw("COALESCE(SUM(CASE WHEN method_type = ? THEN amount ELSE 0 END),0) AS recorded_{$method}_amount", [$method])
+                    ->selectRaw("COUNT(CASE WHEN method_type = ? AND settlement_consistent = 1 THEN 1 END) AS accepted_{$method}_count", [$method])
+                    ->selectRaw("COALESCE(SUM(CASE WHEN method_type = ? AND settlement_consistent = 1 THEN amount ELSE 0 END),0) AS accepted_{$method}_amount", [$method]);
+            }
+            $paymentTotals = $payments->selectRaw('COUNT(CASE WHEN settlement_consistent = 1 THEN 1 END) AS accepted_count, COALESCE(SUM(CASE WHEN settlement_consistent = 1 THEN amount ELSE 0 END),0) AS accepted_amount')
+                ->selectRaw("COUNT(CASE WHEN settlement_consistent = 0 THEN 1 END) AS inconsistent_count, COUNT(CASE WHEN COALESCE(gross_count,0) = 0 THEN 1 END) AS missing_gross_count, COUNT(CASE WHEN gross_count > 1 THEN 1 END) AS duplicate_gross_count, COUNT(CASE WHEN method_type NOT IN ('cash','qris') THEN 1 END) AS unsupported_count")->first();
+            $ledger = $this->ledgerFacts();
+            $this->financialDates($ledger, 'l.transacted_at', $filters);
+            $ledgerTotals = (clone $ledger)->selectRaw("COALESCE(SUM(CASE WHEN direction='in' THEN amount ELSE 0 END),0) AS income, COALESCE(SUM(CASE WHEN direction='out' THEN amount ELSE 0 END),0) AS expenses")
+                ->selectRaw("COALESCE(SUM(CASE WHEN direction='in' AND link_kind='GROSS_PAYMENT' THEN amount ELSE 0 END),0) AS linked_income, COALESCE(SUM(CASE WHEN direction='out' AND link_kind='PROVIDER_FEE' THEN amount ELSE 0 END),0) AS recorded_fee, COUNT(CASE WHEN fee_payment_id IS NOT NULL THEN 1 END) AS fee_entries, COUNT(CASE WHEN link_consistent=0 THEN 1 END) AS invalid_links")->first();
+            $categories = (clone $ledger)->select(['cash_category_id', 'category_name', 'direction', 'category_active'])
+                ->selectRaw('COUNT(*) AS entries, SUM(amount) AS amount')->groupBy('cash_category_id', 'category_name', 'direction', 'category_active')->orderBy('cash_category_id')->get()
+                ->map(fn (object $row): array => ['id' => (int) $row->cash_category_id, 'name' => $row->category_name, 'type' => $row->direction,
+                    'is_active' => (bool) $row->category_active, 'count' => (int) $row->entries, 'amount' => $this->financialInteger($row->amount)])->all();
+            $unpaidCompleted = Order::query()->where('status', Order::STATUS_COMPLETED)->whereDoesntHave('payments', fn (Builder $query): Builder => $query->where('status', 'success'));
+            $this->financialDates($unpaidCompleted->getQuery(), 'orders.created_at', $filters);
+            $completedAnomalies = $unpaidCompleted->count();
+            $recorded = $accepted = [];
+            foreach (['cash', 'qris'] as $method) {
+                $recorded[$method] = ['count' => (int) $paymentTotals->{'recorded_'.$method.'_count'}, 'amount' => $this->financialInteger($paymentTotals->{'recorded_'.$method.'_amount'})];
+                $accepted[$method] = ['count' => (int) $paymentTotals->{'accepted_'.$method.'_count'}, 'amount' => $this->financialInteger($paymentTotals->{'accepted_'.$method.'_amount'})];
+            }
+            $accepted['total'] = ['count' => (int) $paymentTotals->accepted_count, 'amount' => $this->financialInteger($paymentTotals->accepted_amount)];
+            $income = $this->financialInteger($ledgerTotals->income);
+            $expenses = $this->financialInteger($ledgerTotals->expenses);
+            // A fee link or description proves recording, not final provider verification.
+            $unknownFees = $recorded['qris']['count'] > 0 || $ledgerTotals->fee_entries > 0;
+            $provisional = $unknownFees || $paymentTotals->inconsistent_count > 0 || $ledgerTotals->invalid_links > 0 || $completedAnomalies > 0;
+
+            return response()->json(['data' => [
+                'currency' => 'IDR', 'timezone' => config('app.timezone'), 'date_from' => $filters['date_from'], 'date_to' => $filters['date_to'],
+                'date_basis' => ['sales' => 'paid_at; undated success anomalies use created_at', 'ledger' => 'transacted_at', 'completed_without_success' => 'orders.created_at'],
+                'recorded_success' => $recorded, 'accepted_sales' => $accepted,
+                'ledger' => ['income' => $income, 'expenses' => $expenses, 'known_net' => $income - $expenses,
+                    'linked_gross_income' => $this->financialInteger($ledgerTotals->linked_income), 'recorded_provider_fee_expense' => $this->financialInteger($ledgerTotals->recorded_fee)],
+                'categories' => $categories,
+                'provider_fees' => ['status' => $unknownFees ? 'UNKNOWN' : 'NOT_APPLICABLE', 'verified_amount' => null, 'unverified_success_count' => $recorded['qris']['count'], 'unverified_recorded_fee_entries' => (int) $ledgerTotals->fee_entries],
+                'net' => ['status' => $provisional ? 'PROVISIONAL' : 'RECORDED', 'final_fee_adjusted' => $provisional ? null : $income - $expenses, 'bank_payout_verified' => false],
+                'anomalies' => ['inconsistent_success_count' => (int) $paymentTotals->inconsistent_count, 'missing_gross_count' => (int) $paymentTotals->missing_gross_count,
+                    'duplicate_gross_count' => (int) $paymentTotals->duplicate_gross_count, 'unsupported_success_count' => (int) $paymentTotals->unsupported_count,
+                    'completed_without_success_count' => $completedAnomalies, 'invalid_ledger_link_count' => (int) $ledgerTotals->invalid_links],
+            ]])->header('Cache-Control', 'private, no-store');
+        });
+    }
+
+    private function paymentFacts(): QueryBuilder
+    {
+        $items = DB::table('order_items')->select('order_id')->selectRaw('SUM(subtotal) AS subtotal, COUNT(*) AS n')->groupBy('order_id');
+        $attempts = DB::table('payments')->select('order_id')->selectRaw("SUM(status='success') AS successes, SUM(status='pending') AS pending_attempts")->groupBy('order_id');
+        $gross = DB::table('cash_transactions')->whereNotNull('payment_id')->select('payment_id')->groupBy('payment_id')
+            ->selectRaw('COUNT(*) AS n, MIN(id) AS id, SUM(amount) AS amount, MIN(cash_category_id) AS category_id, MIN(recorded_by) AS recorded_by, MIN(transacted_at) AS transacted_at, MIN(fee_payment_id) AS fee_payment_id, MIN(purchase_request_id) AS purchase_request_id');
+        $consistent = <<<'SQL'
+p.status='success' AND m.type IN ('cash','qris') AND o.status='completed'
+AND CHAR_LENGTH(TRIM(p.payment_reference))>0
+AND p.paid_at IS NOT NULL AND o.completed_at=p.paid_at AND p.amount=o.total
+AND i.n>0 AND i.subtotal=o.subtotal AND a.successes=1 AND a.pending_attempts=0
+AND g.n=1 AND gc.type='in' AND g.amount=p.amount AND (g.recorded_by <=> p.cashier_id)
+AND g.transacted_at=p.paid_at AND g.fee_payment_id IS NULL AND g.purchase_request_id IS NULL
+AND ((m.type='cash' AND p.tendered_amount>=p.amount AND CAST(p.tendered_amount AS DECIMAL(65,0))-p.amount=p.change_amount)
+OR (m.type='qris' AND p.tendered_amount IS NULL AND p.change_amount IS NULL))
+SQL;
+        $facts = DB::table('payments as p')->leftJoin('orders as o', 'o.id', '=', 'p.order_id')->leftJoin('payment_methods as m', 'm.id', '=', 'p.payment_method_id')
+            ->leftJoin('users as u', 'u.id', '=', 'p.cashier_id')->leftJoin('tables as rt', 'rt.id', '=', 'o.table_id')
+            ->leftJoinSub($items, 'i', 'i.order_id', '=', 'p.order_id')->leftJoinSub($attempts, 'a', 'a.order_id', '=', 'p.order_id')
+            ->leftJoinSub($gross, 'g', 'g.payment_id', '=', 'p.id')->leftJoin('cash_categories as gc', 'gc.id', '=', 'g.category_id')
+            ->select(['p.id', 'p.order_id', 'p.payment_method_id', 'p.cashier_id', 'p.payment_reference as reference', 'p.status', 'p.amount', 'p.tendered_amount', 'p.change_amount', 'p.paid_at', 'p.created_at',
+                'o.order_number', 'o.order_type', 'o.status as order_status', 'o.customer_name', 'o.created_at as order_created_at', 'o.completed_at', 'o.subtotal', 'o.discount', 'o.service_charge', 'o.tax', 'o.total', 'o.table_id', 'rt.number as table_number',
+                'm.name as method_name', 'm.type as method_type', 'm.is_active as method_active', 'u.name as cashier_name', 'g.n as gross_count'])
+            ->selectRaw("COALESCE(($consistent),0) AS settlement_consistent");
+
+        return DB::query()->fromSub($facts, 'f');
+    }
+
+    private function ledgerFacts(): QueryBuilder
+    {
+        $kind = "CASE WHEN (t.payment_id IS NOT NULL AND t.fee_payment_id IS NOT NULL) OR (t.purchase_request_id IS NOT NULL AND (t.payment_id IS NOT NULL OR t.fee_payment_id IS NOT NULL)) THEN 'CONFLICT' WHEN t.payment_id IS NOT NULL THEN 'GROSS_PAYMENT' WHEN t.fee_payment_id IS NOT NULL THEN 'PROVIDER_FEE' ELSE 'OTHER' END";
+        $consistent = <<<'SQL'
+c.type IS NOT NULL AND (
+(t.payment_id IS NULL AND t.fee_payment_id IS NULL)
+OR (t.payment_id IS NOT NULL AND t.fee_payment_id IS NULL AND t.purchase_request_id IS NULL AND c.type='in'
+AND p.status='success' AND m.type IN ('cash','qris') AND p.amount=t.amount AND p.paid_at=t.transacted_at AND (t.recorded_by <=> p.cashier_id))
+OR (t.fee_payment_id IS NOT NULL AND t.payment_id IS NULL AND t.purchase_request_id IS NULL AND c.type='out' AND fp.status='success' AND fm.type='qris'))
+SQL;
+        $facts = DB::table('cash_transactions as t')->leftJoin('cash_categories as c', 'c.id', '=', 't.cash_category_id')
+            ->leftJoin('payments as p', 'p.id', '=', 't.payment_id')->leftJoin('payment_methods as m', 'm.id', '=', 'p.payment_method_id')
+            ->leftJoin('payments as fp', 'fp.id', '=', 't.fee_payment_id')->leftJoin('payment_methods as fm', 'fm.id', '=', 'fp.payment_method_id')
+            ->leftJoin('users as u', 'u.id', '=', 't.recorded_by')
+            ->select(['t.id', 't.cash_category_id', 't.payment_id', 't.fee_payment_id', 't.purchase_request_id', 't.recorded_by', 't.amount', 't.transacted_at',
+                'c.name as category_name', 'c.type as direction', 'c.is_active as category_active', 'p.payment_reference', 'p.status as payment_status', 'fp.payment_reference as fee_reference', 'fp.status as fee_status', 'u.name as recorder_name'])
+            ->selectRaw("$kind AS link_kind, COALESCE(($consistent),0) AS link_consistent");
+
+        return DB::query()->fromSub($facts, 'l');
+    }
+
+    private function financialFilters(Request $request, array $extra, bool $requiredDates = false): array
+    {
+        $filters = $request->validate(array_merge([
+            'date_from' => [$requiredDates ? 'required' : 'nullable', 'date_format:Y-m-d', 'after_or_equal:0001-01-01', 'before:9999-12-31'],
+            'date_to' => [$requiredDates ? 'required' : 'nullable', 'date_format:Y-m-d', 'after_or_equal:0001-01-01', 'before:9999-12-31'],
+            'page' => ['nullable', 'integer', 'min:1'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:'.self::MAX_PER_PAGE],
+        ], $extra));
+        if (isset($filters['date_from'], $filters['date_to']) && $filters['date_from'] > $filters['date_to']) {
+            throw ValidationException::withMessages(['date_to' => 'Tanggal akhir harus setelah atau sama dengan tanggal awal.']);
+        }
+
+        return array_filter($filters, fn (mixed $value): bool => $value !== null);
+    }
+
+    private function financialDates(QueryBuilder $query, string $column, array $filters, ?string $fallback = null): void
+    {
+        if (! isset($filters['date_from']) && ! isset($filters['date_to'])) {
+            return;
+        }
+        $range = function (QueryBuilder $query, string $field) use ($filters): void {
+            if (isset($filters['date_from'])) {
+                $query->where($field, '>=', CarbonImmutable::createFromFormat('!Y-m-d', $filters['date_from'], config('app.timezone'))->format('Y-m-d H:i:s'));
+            }
+            if (isset($filters['date_to'])) {
+                $query->where($field, '<', CarbonImmutable::createFromFormat('!Y-m-d', $filters['date_to'], config('app.timezone'))->addDay()->format('Y-m-d H:i:s'));
+            }
+        };
+        $query->where(function (QueryBuilder $scoped) use ($range, $column, $fallback): void {
+            $scoped->where(fn (QueryBuilder $dated) => $range($dated, $column));
+            if ($fallback !== null) {
+                $scoped->orWhere(function (QueryBuilder $undated) use ($range, $column, $fallback): void {
+                    $undated->whereNull($column);
+                    $range($undated, $fallback);
+                });
+            }
+        });
+    }
+
+    private function financialInteger(mixed $value): int
+    {
+        $integer = filter_var($value, FILTER_VALIDATE_INT);
+        abort_if($integer === false || $integer < 0, 409, 'Nilai keuangan di luar rentang integer yang didukung.');
+
+        return $integer;
+    }
+
+    private function financialTime(?string $value): ?string
+    {
+        return $value === null ? null : CarbonImmutable::parse($value, config('app.timezone'))->toISOString();
+    }
+
+    private function paymentReadRow(object $row): array
+    {
+        return ['id' => (int) $row->id, 'reference' => $row->reference, 'status' => $row->status, 'amount' => $this->financialInteger($row->amount),
+            'method' => ['id' => (int) $row->payment_method_id, 'name' => $row->method_name, 'type' => $row->method_type, 'is_active' => (bool) $row->method_active],
+            'order' => ['id' => (int) $row->order_id, 'order_number' => $row->order_number, 'status' => $row->order_status, 'order_type' => $row->order_type],
+            'cashier' => $row->cashier_id === null ? null : ['id' => (int) $row->cashier_id, 'name' => $row->cashier_name],
+            'created_at' => $this->financialTime($row->created_at), 'paid_at' => $this->financialTime($row->paid_at),
+            'integrity' => $row->status === 'success' ? ((bool) $row->settlement_consistent ? 'CONSISTENT' : 'CONFLICT') : 'NOT_SETTLED'];
+    }
+
+    private function financialPage(LengthAwarePaginator $page, array $data, array $filters): JsonResponse
+    {
+        $page->appends($filters);
+
+        return response()->json(['data' => $data, 'timezone' => config('app.timezone'), 'filters' => $filters,
+            'links' => ['first' => $page->url(1), 'last' => $page->url($page->lastPage()), 'prev' => $page->previousPageUrl(), 'next' => $page->nextPageUrl()],
+            'meta' => ['current_page' => $page->currentPage(), 'per_page' => $page->perPage(), 'total' => $page->total(), 'last_page' => $page->lastPage(),
+                'from' => $page->firstItem(), 'to' => $page->lastItem(), 'path' => $page->path(), 'links' => $page->linkCollection()->toArray()],
+        ])->header('Cache-Control', 'private, no-store');
     }
 
     private function previewBill(int $itemSubtotal, int $discount): array
