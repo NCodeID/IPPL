@@ -116,7 +116,16 @@ test('login returns user and token', function () {
         'password' => 'password',
     ])
         ->assertOk()
-        ->assertJsonStructure(['user', 'token']);
+        ->assertJsonStructure(['user', 'token', 'access_token'])
+        ->assertJsonPath('user.role', 'admin');
+});
+
+test('login returns akuntan role name as is', function () {
+    $user = createUser('akuntan');
+
+    $this->postJson('/api/login', ['email' => $user->email, 'password' => 'password'])
+        ->assertOk()
+        ->assertJsonPath('user.role', 'akuntan');
 });
 
 test('login fails with invalid credentials', function () {

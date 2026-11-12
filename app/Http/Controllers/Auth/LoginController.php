@@ -42,7 +42,10 @@ class LoginController extends Controller
                 description: 'Login berhasil',
                 content: new OA\JsonContent(
                     properties: [
-                        new OA\Property(property: 'user', ref: '#/components/schemas/User'),
+                        new OA\Property(property: 'user', ref: '#/components/schemas/User', description: 'role berupa string nama role'),
+                        new OA\Property(property: 'role', ref: '#/components/schemas/Role'),
+                        new OA\Property(property: 'access_token', type: 'string', example: '1|abc123def456'),
+                        new OA\Property(property: 'token_type', type: 'string', example: 'Bearer'),
                         new OA\Property(property: 'token', type: 'string', example: '1|abc123def456'),
                     ],
                 ),
@@ -63,11 +66,15 @@ class LoginController extends Controller
             ]);
         }
 
-        $user = User::where('email', $request->email)->first();
+        $user = User::with('role')->where('email', $request->email)->first();
+        $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'user' => $user,
-            'token' => $user->createToken('auth_token')->plainTextToken,
+            'user' => [...$user->withoutRelations()->toArray(), 'role' => $user->role?->name],
+            'role' => $user->role,
+            'access_token' => $token,
+            'token_type' => 'Bearer',
+            'token' => $token,
         ]);
     }
 }
