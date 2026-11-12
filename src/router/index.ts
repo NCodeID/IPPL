@@ -21,6 +21,18 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'admin' },
     },
     {
+      path: '/admin/categories',
+      name: 'AdminCategories',
+      component: () => import('@/views/admin/categories/CategoryListView.vue'),
+      meta: { requiresAuth: true, role: 'admin' },
+    },
+    {
+      path: '/admin/categories/:id',
+      name: 'AdminCategoryDetail',
+      component: () => import('@/views/admin/categories/CategoryDetailView.vue'),
+      meta: { requiresAuth: true, role: 'admin' },
+    },
+    {
       path: '/accountant/dashboard',
       name: 'AccountantDashboard',
       component: () => import('@/views/accountant/DashboardView.vue'),
