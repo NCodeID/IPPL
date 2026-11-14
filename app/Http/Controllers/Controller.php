@@ -15,10 +15,10 @@ use OpenApi\Attributes as OA;
 )]
 #[OA\SecurityScheme(
     securityScheme: 'sanctum',
-    type: 'http',
-    scheme: 'bearer',
-    bearerFormat: 'Sanctum personal access token',
-    description: 'Enter the Sanctum token only; Swagger adds the Bearer prefix.',
+    type: 'apiKey',
+    in: 'cookie',
+    name: 'laravel_session',
+    description: 'Session cookie. Run POST /api/login in this page first; the browser then sends the cookie automatically.',
 )]
 abstract class Controller
 {

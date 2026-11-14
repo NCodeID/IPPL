@@ -7,7 +7,7 @@
     },
     "servers": [
         {
-            "url": "http://my-default-host.com",
+            "url": "http://localhost:8000",
             "description": "IMPAL API Server"
         }
     ],
@@ -18,7 +18,7 @@
                     "Auth"
                 ],
                 "summary": "Login",
-                "description": "Melakukan validasi email dan password. Jika benar, mengembalikan data user beserta token.",
+                "description": "Melakukan validasi email dan password. Jika benar, membuat sesi dan mengembalikan data user.",
                 "operationId": "authLogin",
                 "requestBody": {
                     "required": true,
@@ -56,9 +56,8 @@
                                         "user": {
                                             "$ref": "#/components/schemas/User"
                                         },
-                                        "token": {
-                                            "type": "string",
-                                            "example": "1|abc123def456"
+                                        "role": {
+                                            "$ref": "#/components/schemas/Role"
                                         }
                                     },
                                     "type": "object"
@@ -114,7 +113,7 @@
                     "Auth"
                 ],
                 "summary": "Register user baru",
-                "description": "Membuat user baru. Membutuhkan permission manage_users. Jika role_id tidak dikirim, defaults ke role kasir.",
+                "description": "Membuat user baru. Hanya admin (role admin dengan permission manage_users), memakai sesi login. Jika role_id tidak dikirim, defaults ke role kasir.",
                 "operationId": "authRegister",
                 "requestBody": {
                     "required": true,
@@ -166,10 +165,6 @@
                                     "properties": {
                                         "user": {
                                             "$ref": "#/components/schemas/User"
-                                        },
-                                        "token": {
-                                            "type": "string",
-                                            "example": "2|xyz789uvw"
                                         }
                                     },
                                     "type": "object"
@@ -179,6 +174,9 @@
                     },
                     "401": {
                         "description": "Tidak terautentikasi"
+                    },
+                    "403": {
+                        "description": "Bukan admin"
                     },
                     "422": {
                         "description": "Validasi gagal"
@@ -2656,10 +2654,10 @@
         },
         "securitySchemes": {
             "sanctum": {
-                "type": "http",
-                "description": "Enter the Sanctum token only; Swagger adds the Bearer prefix.",
-                "bearerFormat": "Sanctum personal access token",
-                "scheme": "bearer"
+                "type": "apiKey",
+                "description": "Session cookie. Run POST /api/login in this page first; the browser then sends the cookie automatically.",
+                "name": "laravel_session",
+                "in": "cookie"
             }
         }
     },
