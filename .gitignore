@@ -33,3 +33,6 @@ CLAUDE.md
 AGENTS.md
 .commandcode*
 *.sql
+**/caddy
+frankenphp
+frankenphp-worker.php
