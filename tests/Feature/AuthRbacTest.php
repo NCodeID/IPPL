@@ -108,16 +108,20 @@ function createUser(string $role = 'admin'): User
 |
 */
 
-test('login returns user and token', function () {
+test('login returns user and starts a session', function () {
     $user = createUser('admin');
 
-    $this->postJson('/api/login', [
-        'email' => $user->email,
-        'password' => 'password',
-    ])
+    $this->withHeaders(['Origin' => 'http://localhost:5173'])
+        ->postJson('/api/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ])
         ->assertOk()
-        ->assertJsonStructure(['user', 'token', 'access_token'])
+        ->assertJsonStructure(['user'])
+        ->assertJsonMissingPath('token')
         ->assertJsonPath('user.role', 'admin');
+
+    $this->assertAuthenticatedAs($user, 'web');
 });
 
 test('login returns akuntan role name as is', function () {
@@ -136,15 +140,38 @@ test('login fails with invalid credentials', function () {
         ->assertStatus(422);
 });
 
-test('logout revokes token', function () {
+test('logout ends the session', function () {
     $user = createUser('admin');
-    $token = $user->createToken('auth_token')->plainTextToken;
 
-    $this->withToken($token)
-        ->postJson('/api/logout')
+    $this->withHeaders(['Origin' => 'http://localhost:5173'])
+        ->postJson('/api/login', ['email' => $user->email, 'password' => 'password'])
         ->assertOk();
 
-    $this->assertDatabaseCount('personal_access_tokens', 0);
+    $this->postJson('/api/logout')->assertOk();
+
+    $this->assertGuest('web');
+});
+
+test('admin can register a user and gets no token', function () {
+    $this->actingAs(createUser('admin'), 'sanctum')
+        ->postJson('/api/register', [
+            'name' => 'Budi',
+            'email' => 'budi@pos.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+        ])
+        ->assertCreated()
+        ->assertJsonMissingPath('token');
+});
+
+test('non admin cannot register a user', function () {
+    $this->actingAs(createUser('kasir'), 'sanctum')
+        ->postJson('/api/register', [])
+        ->assertForbidden();
+});
+
+test('guest cannot register a user', function () {
+    $this->postJson('/api/register', [])->assertUnauthorized();
 });
 
 /*
