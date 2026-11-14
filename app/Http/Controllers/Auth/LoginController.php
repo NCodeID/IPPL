@@ -12,7 +12,7 @@ use OpenApi\Attributes as OA;
 /*
 |
 | Nama Fitur : Login
-| Desc : melakukan validasi email dan password jika benar maka dapat token
+| Desc : melakukan validasi email dan password jika benar maka sesi (cookie) dibuat
 | Param:
 | @email: string
 | @password: string
@@ -24,7 +24,7 @@ class LoginController extends Controller
         path: '/api/login',
         operationId: 'authLogin',
         summary: 'Login',
-        description: 'Melakukan validasi email dan password. Jika benar, mengembalikan data user beserta token.',
+        description: 'Melakukan validasi email dan password. Jika benar, membuat sesi dan mengembalikan data user.',
         tags: ['Auth'],
         requestBody: new OA\RequestBody(
             required: true,
@@ -44,9 +44,6 @@ class LoginController extends Controller
                     properties: [
                         new OA\Property(property: 'user', ref: '#/components/schemas/User', description: 'role berupa string nama role'),
                         new OA\Property(property: 'role', ref: '#/components/schemas/Role'),
-                        new OA\Property(property: 'access_token', type: 'string', example: '1|abc123def456'),
-                        new OA\Property(property: 'token_type', type: 'string', example: 'Bearer'),
-                        new OA\Property(property: 'token', type: 'string', example: '1|abc123def456'),
                     ],
                 ),
             ),
@@ -66,15 +63,13 @@ class LoginController extends Controller
             ]);
         }
 
+        $request->session()->regenerate();
+
         $user = User::with('role')->where('email', $request->email)->first();
-        $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
             'user' => [...$user->withoutRelations()->toArray(), 'role' => $user->role?->name],
             'role' => $user->role,
-            'access_token' => $token,
-            'token_type' => 'Bearer',
-            'token' => $token,
         ]);
     }
 }

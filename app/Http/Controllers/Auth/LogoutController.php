@@ -4,12 +4,13 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use OpenApi\Attributes as OA;
 
 /*
 |
 | Nama Fitur : Logout
-| Desc : Menghapus token sehingga pengguna diarahkan kehalaman login / landing page
+| Desc : Menghapus sesi sehingga pengguna diarahkan kehalaman login / landing page
 | 
 */
 class LogoutController extends Controller
@@ -36,7 +37,9 @@ class LogoutController extends Controller
     )]
     public function logout(Request $request)
     {
-        $request->user()->currentAccessToken()?->delete();
+        Auth::guard('web')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return response()->json([
             'message' => 'Proses Logout berhasil.',

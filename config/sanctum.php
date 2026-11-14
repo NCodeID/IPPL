@@ -6,7 +6,7 @@ use Laravel\Sanctum\Http\Middleware\AuthenticateSession;
 use Laravel\Sanctum\Sanctum;
 
 return [
-
+    'prefix' => 'api/sanctum',
     /*
     |--------------------------------------------------------------------------
     | Stateful Domains
@@ -18,7 +18,7 @@ return [
     |
     */
 
-    'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', '')),
+    'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', 'localhost:5173')),
 
     /*
     |--------------------------------------------------------------------------
@@ -72,6 +72,7 @@ return [
     | request. You may change the middleware listed below as required.
     |
     */
+    // 'prefix' => 'api',
 
     'middleware' => [
         'authenticate_session' => AuthenticateSession::class,
