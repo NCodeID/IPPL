@@ -12,8 +12,8 @@ use OpenApi\Attributes as OA;
 
 /*
 |
-| Nama Fitur : Logout
-| Desc : Menghapus token sehingga pengguna diarahkan kehalaman login / landing page
+| Nama Fitur : Register
+| Desc : Admin membuat akun pengguna baru
 | Param:
 | @name: string
 | @email: string
@@ -28,7 +28,7 @@ class RegisterController extends Controller
         path: '/api/register',
         operationId: 'authRegister',
         summary: 'Register user baru',
-        description: 'Membuat user baru. Membutuhkan permission manage_users. Jika role_id tidak dikirim, defaults ke role kasir.',
+        description: 'Membuat user baru. Hanya admin (role admin dengan permission manage_users), memakai sesi login. Jika role_id tidak dikirim, defaults ke role kasir.',
         tags: ['Auth'],
         security: [['sanctum' => []]],
         requestBody: new OA\RequestBody(
@@ -51,11 +51,11 @@ class RegisterController extends Controller
                 content: new OA\JsonContent(
                     properties: [
                         new OA\Property(property: 'user', ref: '#/components/schemas/User'),
-                        new OA\Property(property: 'token', type: 'string', example: '2|xyz789uvw'),
                     ],
                 ),
             ),
             new OA\Response(response: 401, description: 'Tidak terautentikasi'),
+            new OA\Response(response: 403, description: 'Bukan admin'),
             new OA\Response(response: 422, description: 'Validasi gagal'),
         ],
     )]
@@ -84,9 +84,6 @@ class RegisterController extends Controller
             'is_active' => true,
         ]);
 
-        return response()->json([
-            'user' => $user->load('role'),
-            'token' => $user->createToken('auth_token')->plainTextToken,
-        ], 201);
+        return response()->json(['user' => $user->load('role')], 201);
     }
 }

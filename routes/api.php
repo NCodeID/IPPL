@@ -34,7 +34,7 @@ Route::middleware(['auth:sanctum', 'permission:manage_permissions'])->group(
     },
 );
 
-Route::middleware(['auth:sanctum', 'permission:manage_users'])->group(
+Route::middleware(['auth:sanctum', 'active', 'role:admin', 'permission:manage_users'])->group(
     function () {
         Route::post('/register', [RegisterController::class, 'register']);
     },
