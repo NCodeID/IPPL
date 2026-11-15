@@ -58,6 +58,10 @@ async function handleLogin(): Promise<void> {
       await router.push('/admin/dashboard')
     } else if (authStore.userRole === 'accountant') {
       await router.push('/accountant/dashboard')
+    } else if (authStore.userRole === 'cashier') {
+      await router.push('/cashier/dashboard')
+    } else if (authStore.userRole === 'runner') {
+      await router.push('/runner/dashboard')
     } else {
       errorMessage.value = 'Role tidak dikenali.'
     }

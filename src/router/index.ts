@@ -26,6 +26,18 @@ const router = createRouter({
       component: () => import('@/views/accountant/DashboardView.vue'),
       meta: { requiresAuth: true, role: 'accountant' },
     },
+    {
+      path: '/cashier/dashboard',
+      name: 'CashierDashboard',
+      component: () => import('@/views/cashier/DashboardView.vue'),
+      meta: { requiresAuth: true, role: 'cashier' },
+    },
+    {
+      path: '/runner/dashboard',
+      name: 'RunnerDashboard',
+      component: () => import('@/views/runner/DashboardView.vue'),
+      meta: { requiresAuth: true, role: 'runner' },
+    },
   ],
 })
 
@@ -50,6 +62,9 @@ router.beforeEach((to) => {
       if (authStore.userRole === 'accountant') {
         return { path: '/accountant/dashboard' }
       }
+      if (authStore.userRole === 'cashier') {
+        return { path: '/cashier/dashboard' }
+      }
       // Fallback: unknown role → back to login
       return { path: '/login' }
     }
@@ -62,6 +77,9 @@ router.beforeEach((to) => {
     }
     if (authStore.userRole === 'accountant') {
       return { path: '/accountant/dashboard' }
+    }
+    if (authStore.userRole === 'cashier') {
+      return { path: '/cashier/dashboard' }
     }
   }
 })
