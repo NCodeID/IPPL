@@ -38,6 +38,12 @@ const router = createRouter({
       component: () => import('@/views/runner/DashboardView.vue'),
       meta: { requiresAuth: true, role: 'runner' },
     },
+    {
+      path: '/cashier/tables',
+      name: 'CashierTables',
+      component: () => import('@/views/cashier/TableView.vue'),
+      meta: { requiresAuth: true, role: 'cashier' },
+    },
   ],
 })
 

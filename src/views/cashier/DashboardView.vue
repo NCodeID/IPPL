@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 
 // Data reaktif untuk ringkasan kasir
 const cashierName = ref('Dina')
@@ -48,13 +51,19 @@ const getStatusBadge = (status: string) => {
         return { text: status, bg: 'bg-gray-100 text-gray-600', dot: 'bg-gray-400' }
     }
 }
+
+// Fungsi interaksi tombol
+const handleNewOrder = () => {
+    alert('Membuka form Pesanan Baru...')
+    // Jika nanti ada halaman form pesanan baru, bisa diarahkan pakai router.push(...)
+}
 </script>
 
 <template>
     <div class="min-h-screen bg-[#FDFBF7] text-gray-800 flex flex-col justify-between font-sans selection:bg-orange-500 selection:text-white pb-24">
-        
-        <!-- HEADER -->
-        <header class="flex items-center justify-between px-8 py-5 bg-[#FDFBF7] border-b border-orange-100/60">
+    
+    <!-- HEADER -->
+    <header class="flex items-center justify-between px-8 py-5 bg-[#FDFBF7] border-b border-orange-100/60">
         <div class="flex items-center space-x-3">
             <!-- Logo -->
             <div class="bg-[#F58220] p-2.5 rounded-xl text-white flex items-center justify-center shadow-sm">
@@ -74,10 +83,10 @@ const getStatusBadge = (status: string) => {
         <div class="bg-amber-100/70 border border-amber-200/60 px-4 py-1.5 rounded-full text-xs font-bold text-amber-900 tracking-wide uppercase">
             KASIR • {{ cashierName }}
         </div>
-        </header>
+    </header>
 
-        <!-- MAIN CONTENT -->
-        <main class="flex-1 px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-[1440px] mx-auto w-full">
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 px-8 py-6 grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-[1440px] mx-auto w-full">
         
         <!-- LEFT SECTION (Greeting, Summary Card, Stats & Action) -->
         <div class="lg:col-span-7 flex flex-col justify-between space-y-6">
@@ -136,7 +145,10 @@ const getStatusBadge = (status: string) => {
             </div>
 
             <!-- Action Button: Pesanan baru -->
-            <button class="w-full bg-[#F58220] hover:bg-[#e0751b] active:scale-[0.99] transition-all text-white font-bold py-4 px-6 rounded-2xl shadow-lg shadow-orange-500/20 flex items-center justify-center space-x-2 text-base cursor-pointer">
+            <button 
+            @click="handleNewOrder"
+            class="w-full bg-[#F58220] hover:bg-[#e0751b] active:scale-[0.99] transition-all text-white font-bold py-4 px-6 rounded-2xl shadow-lg shadow-orange-500/20 flex items-center justify-center space-x-2 text-base cursor-pointer"
+            >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
             </svg>
@@ -195,10 +207,10 @@ const getStatusBadge = (status: string) => {
 
         </div>
 
-        </main>
+    </main>
 
-        <!-- BOTTOM TAB BAR NAVIGATION -->
-        <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200/80 px-8 py-3 flex justify-around items-center z-50 shadow-lg">
+    <!-- BOTTOM TAB BAR NAVIGATION -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200/80 px-8 py-3 flex justify-around items-center z-50 shadow-lg">
         
         <!-- Beranda (Active) -->
         <button class="flex flex-col items-center text-[#F58220] focus:outline-none cursor-pointer">
@@ -211,7 +223,7 @@ const getStatusBadge = (status: string) => {
         </button>
 
         <!-- Meja -->
-        <button class="flex flex-col items-center text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer">
+        <button @click="router.push('/cashier/tables')" class="flex flex-col items-center text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer">
             <div class="p-1.5">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -221,7 +233,7 @@ const getStatusBadge = (status: string) => {
         </button>
 
         <!-- Pesanan -->
-        <button class="flex flex-col items-center text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer">
+        <button @click="router.push('/cashier/orders')" class="flex flex-col items-center text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer">
             <div class="p-1.5">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -231,7 +243,7 @@ const getStatusBadge = (status: string) => {
         </button>
 
         <!-- Bill -->
-        <button class="flex flex-col items-center text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer">
+        <button @click="router.push('/cashier/bills')" class="flex flex-col items-center text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer">
             <div class="p-1.5">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
@@ -240,7 +252,7 @@ const getStatusBadge = (status: string) => {
             <span class="text-[10px] font-medium mt-1">Bill</span>
         </button>
 
-        </nav>
+    </nav>
 
     </div>
 </template>
