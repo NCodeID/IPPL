@@ -145,10 +145,7 @@ const handleNewOrder = () => {
             </div>
 
             <!-- Action Button: Pesanan baru -->
-            <button 
-            @click="handleNewOrder"
-            class="w-full bg-[#F58220] hover:bg-[#e0751b] active:scale-[0.99] transition-all text-white font-bold py-4 px-6 rounded-2xl shadow-lg shadow-orange-500/20 flex items-center justify-center space-x-2 text-base cursor-pointer"
-            >
+            <button @click="router.push('/cashier/orders')" class="w-full bg-[#F58220] hover:bg-[#e0751b] active:scale-[0.99] transition-all text-white font-bold py-4 px-6 rounded-2xl shadow-lg shadow-orange-500/20 flex items-center justify-center space-x-2 text-base cursor-pointer">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
             </svg>
@@ -170,7 +167,7 @@ const handleNewOrder = () => {
             
             <div class="flex items-center justify-between pb-5 border-b border-gray-100">
             <h3 class="font-bold text-lg text-gray-900">Perlu perhatian</h3>
-            <button class="text-xs font-bold text-[#F58220] hover:underline flex items-center cursor-pointer">
+            <button @click="router.push('/cashier/track-orders')" class="text-xs font-bold text-[#F58220] hover:underline flex items-center cursor-pointer">
                 Pantau 
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />

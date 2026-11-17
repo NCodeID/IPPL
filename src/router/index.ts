@@ -44,6 +44,42 @@ const router = createRouter({
       component: () => import('@/views/cashier/TableView.vue'),
       meta: { requiresAuth: true, role: 'cashier' },
     },
+    {
+      path: '/cashier/orders',
+      name: 'CashierNewOrder',
+      component: () => import('@/views/cashier/NewOrderView.vue'),
+      meta: { requiresAuth: true, role: 'cashier' },
+    },
+    {
+      path: '/cashier/track-orders',
+      name: 'CashierOrders',
+      component: () => import('@/views/cashier/TrackOrdersView.vue'),
+      meta: { requiresAuth: true, role: 'cashier' },
+    },
+    {
+      path: '/cashier/bills',
+      name: 'CashierBills',
+      component: () => import('@/views/cashier/BillSummaryView.vue'),
+      meta: { requiresAuth: true, role: 'cashier' },
+    },
+    {
+      path: '/cashier/bills',
+      name: 'CashierBills',
+      component: () => import('@/views/cashier/CheckoutListView.vue'),
+      meta: { requiresAuth: true, role: 'cashier' },
+    },
+    {
+      path: '/cashier/payment',
+      name: 'CashierPayment',
+      component: () => import('@/views/cashier/PaymentView.vue'),
+      meta: { requiresAuth: true, role: 'cashier' },
+    },
+    {
+      path: '/cashier/payment-success',
+      name: 'CashierPaymentSuccess',
+      component: () => import('@/views/cashier/PaymentSuccessView.vue'),
+      meta: { requiresAuth: true, role: 'cashier' },
+    },
   ],
 })
 
