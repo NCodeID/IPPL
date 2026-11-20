@@ -374,6 +374,202 @@
                 ]
             }
         },
+        "/api/kitchen/orders": {
+            "get": {
+                "tags": [
+                    "Kitchen"
+                ],
+                "summary": "Daftar antrean dapur",
+                "description": "Akun aktif dengan role dapur dan permission manage_orders. Pending dan cooking, termasuk dine_in dan takeaway, dari pesanan terlama. Jumlah mencakup seluruh antrean.",
+                "operationId": "kitchenOrderQueue",
+                "parameters": [
+                    {
+                        "name": "page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 1,
+                            "minimum": 1
+                        }
+                    },
+                    {
+                        "name": "per_page",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "default": 15,
+                            "maximum": 100,
+                            "minimum": 1
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Antrean dapur dengan pagination",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "counts": {
+                                            "properties": {
+                                                "total": {
+                                                    "type": "integer"
+                                                },
+                                                "by_status": {
+                                                    "properties": {
+                                                        "pending": {
+                                                            "type": "integer"
+                                                        },
+                                                        "cooking": {
+                                                            "type": "integer"
+                                                        }
+                                                    },
+                                                    "type": "object"
+                                                }
+                                            },
+                                            "type": "object"
+                                        },
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/KitchenOrderCard"
+                                            }
+                                        },
+                                        "links": {
+                                            "description": "first, last, prev, next",
+                                            "type": "object"
+                                        },
+                                        "meta": {
+                                            "description": "current_page, from, last_page, links, path, per_page, to, total",
+                                            "type": "object"
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Belum terautentikasi"
+                    },
+                    "403": {
+                        "description": "Akun, role, atau permission tidak memenuhi syarat"
+                    },
+                    "422": {
+                        "description": "Pagination tidak valid"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/kitchen/orders/{order}/accept": {
+            "post": {
+                "tags": [
+                    "Kitchen"
+                ],
+                "summary": "Terima pesanan untuk dimasak",
+                "description": "Akun aktif dengan role dapur dan permission manage_orders. Tanpa body. Pending tanpa chef menjadi cooking dan mencatat chef pertama.",
+                "operationId": "kitchenAcceptOrder",
+                "parameters": [
+                    {
+                        "name": "order",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Pesanan cooking dengan chef pertama",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/KitchenTransition"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Belum terautentikasi"
+                    },
+                    "403": {
+                        "description": "Akun, role, atau permission tidak memenuhi syarat"
+                    },
+                    "404": {
+                        "description": "Pesanan tidak ditemukan"
+                    },
+                    "409": {
+                        "description": "Pesanan bukan pending atau chef sudah tercatat"
+                    },
+                    "422": {
+                        "description": "Tidak menerima payload"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
+        "/api/kitchen/orders/{order}/ready": {
+            "post": {
+                "tags": [
+                    "Kitchen"
+                ],
+                "summary": "Tandai seluruh pesanan siap",
+                "description": "Akun aktif dengan role dapur dan permission manage_orders. Tanpa body. Cooking menjadi ready. Chef pertama tetap tercatat, termasuk null untuk pesanan lama.",
+                "operationId": "kitchenReadyOrder",
+                "parameters": [
+                    {
+                        "name": "order",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Pesanan ready dengan chef yang sama",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/KitchenTransition"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Belum terautentikasi"
+                    },
+                    "403": {
+                        "description": "Akun, role, atau permission tidak memenuhi syarat"
+                    },
+                    "404": {
+                        "description": "Pesanan tidak ditemukan"
+                    },
+                    "409": {
+                        "description": "Pesanan bukan cooking"
+                    },
+                    "422": {
+                        "description": "Tidak menerima payload"
+                    }
+                },
+                "security": [
+                    {
+                        "sanctum": []
+                    }
+                ]
+            }
+        },
         "/api/orders/monitor": {
             "get": {
                 "tags": [
@@ -2486,6 +2682,123 @@
     },
     "components": {
         "schemas": {
+            "KitchenOrderCard": {
+                "required": [
+                    "id",
+                    "order_number",
+                    "customer_name",
+                    "order_type",
+                    "status",
+                    "created_at",
+                    "note",
+                    "chef_id",
+                    "table",
+                    "items"
+                ],
+                "properties": {
+                    "id": {
+                        "type": "integer"
+                    },
+                    "order_number": {
+                        "type": "string"
+                    },
+                    "customer_name": {
+                        "type": "string"
+                    },
+                    "order_type": {
+                        "type": "string",
+                        "enum": [
+                            "dine_in",
+                            "takeaway"
+                        ]
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "pending",
+                            "cooking"
+                        ]
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "format": "date-time",
+                        "nullable": true
+                    },
+                    "note": {
+                        "type": "string",
+                        "nullable": true
+                    },
+                    "chef_id": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "table": {
+                        "properties": {
+                            "id": {
+                                "type": "integer"
+                            },
+                            "number": {
+                                "type": "integer"
+                            }
+                        },
+                        "type": "object",
+                        "nullable": true
+                    },
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "properties": {
+                                "product": {
+                                    "properties": {
+                                        "id": {
+                                            "type": "integer"
+                                        },
+                                        "name": {
+                                            "type": "string",
+                                            "nullable": true
+                                        }
+                                    },
+                                    "type": "object"
+                                },
+                                "quantity": {
+                                    "type": "integer"
+                                }
+                            },
+                            "type": "object"
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "KitchenTransition": {
+                "properties": {
+                    "data": {
+                        "required": [
+                            "id",
+                            "status",
+                            "chef_id"
+                        ],
+                        "properties": {
+                            "id": {
+                                "type": "integer"
+                            },
+                            "status": {
+                                "type": "string",
+                                "enum": [
+                                    "cooking",
+                                    "ready"
+                                ]
+                            },
+                            "chef_id": {
+                                "type": "integer",
+                                "nullable": true
+                            }
+                        },
+                        "type": "object"
+                    }
+                },
+                "type": "object"
+            },
             "Permission": {
                 "properties": {
                     "id": {
@@ -2669,6 +2982,10 @@
         {
             "name": "Catalog",
             "description": "Catalog"
+        },
+        {
+            "name": "Kitchen",
+            "description": "Kitchen"
         },
         {
             "name": "Orders",

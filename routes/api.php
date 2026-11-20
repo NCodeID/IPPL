@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Catalog\CategoryController;
 use App\Http\Controllers\Catalog\ProductController;
+use App\Http\Controllers\Orders\KitchenOrderController;
 use App\Http\Controllers\Orders\OrderController;
 use App\Http\Controllers\Rbac\PermissionController;
 use App\Http\Controllers\Rbac\RoleController;
@@ -72,6 +73,12 @@ Route::get('/orders/{order}/payments/{payment}', [OrderController::class, 'showP
 Route::post('/orders/{order}/payments/{payment}/reconcile', [OrderController::class, 'reconcileQris'])
     ->whereNumber(['order', 'payment'])
     ->middleware(['auth:sanctum', 'active', 'role:kasir,admin', 'permission:manage_orders', 'permission:manage_payments']);
+
+Route::prefix('kitchen/orders')->middleware(['auth:sanctum', 'active', 'role:dapur', 'permission:manage_orders'])->group(function () {
+    Route::get('/', [KitchenOrderController::class, 'index']);
+    Route::post('/{order}/accept', [KitchenOrderController::class, 'accept'])->whereNumber('order');
+    Route::post('/{order}/ready', [KitchenOrderController::class, 'ready'])->whereNumber('order');
+});
 
 Route::middleware(['auth:sanctum', 'active', 'permission:manage_orders'])->group(
     function () {
