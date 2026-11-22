@@ -1,5 +1,6 @@
 @import './base.css';
 @import './kitchen.css';
+@import './warehouse.css';
 
 #app {
   min-height: 100vh;

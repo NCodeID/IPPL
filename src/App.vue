@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import KitchenPage from './components/kitchen/KitchenPage.vue'
+import WarehousePage from './components/warehouse/WarehousePage.vue'
 </script>
 
 <template>
-  <KitchenPage />
+  <WarehousePage />
 </template>
