@@ -19,6 +19,11 @@ import {
   ChefHat,
   CookingPot,
   Beef,
+  Pencil,
+  X,
+  Check,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-vue-next'
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -49,6 +54,13 @@ interface CategoryProduct {
   price: number
   status: 'Tersedia' | 'Habis'
   icon: Component
+}
+
+// ─── Data form yang digunakan di modal edit kategori ─────────────────────────
+interface CategoryForm {
+  name: string
+  description: string
+  status: 'Aktif' | 'Nonaktif'
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -157,6 +169,16 @@ const products = ref<CategoryProduct[]>([
   },
 ])
 
+// ─── Visibilitas modal edit (true = tampil) ─────────────────────────────────
+const showEditModal = ref(false)
+
+// ─── Data form yang digunakan di modal edit ─────────────────────────────────
+const formData = ref<CategoryForm>({
+  name: '',
+  description: '',
+  status: 'Aktif',
+})
+
 // ─── Halaman aktif saat ini pada pagination tabel produk ────────────────────
 const currentPage = ref(1)
 
@@ -222,9 +244,51 @@ function formatCurrency(value: number): string {
 // FUNGSI NAVIGASI & DATA
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ─── Berpindah ke nomor halaman tertentu ────────────────────────────────────
+function goToPage(page: number | string): void {
+  const pageNum = typeof page === 'string' ? parseInt(page, 10) : page
+  if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages.value) {
+    currentPage.value = pageNum
+  }
+}
+
 // ─── Navigasi kembali ke halaman daftar kategori ────────────────────────────
 function goBack(): void {
   router.push('/admin/categories')
+}
+
+// ─── Membuka modal edit dengan data kategori yang sedang dilihat ─────────────
+function openEditModal(): void {
+  formData.value = {
+    name: category.value.name,
+    description: category.value.description,
+    status: category.value.status,
+  }
+  showEditModal.value = true
+}
+
+// ─── Menutup modal edit kategori ─────────────────────────────────────────────
+function closeEditModal(): void {
+  showEditModal.value = false
+}
+
+// ─── Menyimpan perubahan data kategori dari modal edit ───────────────────────
+// [API-READY] Akan memanggil PUT /api/admin/categories/{id} dengan formData,
+// lalu memperbarui data detail kategori di halaman.
+function updateCategory(): void {
+  if (!formData.value.name.trim()) return
+
+  // [API-READY] const { data } = await api.put(`/admin/categories/${category.value.id}`, formData.value)
+  // category.value = data
+
+  category.value = {
+    ...category.value,
+    name: formData.value.name.trim(),
+    description: formData.value.description.trim(),
+    status: formData.value.status,
+  }
+
+  closeEditModal()
 }
 
 // ─── Mengambil detail kategori dari API berdasarkan ID ──────────────────────
@@ -249,19 +313,29 @@ onMounted(() => {
 <template>
   <DashboardLayout>
     <!-- ═══════════ Page Header ═══════════ -->
-    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h1 class="text-2xl font-bold text-gray-900">Detail Kategori</h1>
         <p class="mt-1 text-sm text-gray-500">Informasi lengkap kategori produk restoran.</p>
       </div>
-      <button
-        type="button"
-        class="flex shrink-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-        @click="goBack"
-      >
-        <ArrowLeft class="h-4 w-4" />
-        Kembali ke Daftar
-      </button>
+      <div class="flex items-center gap-3">
+        <button
+          type="button"
+          class="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+          @click="goBack"
+        >
+          <ArrowLeft class="h-4 w-4" />
+          Kembali
+        </button>
+        <button
+          type="button"
+          class="flex items-center gap-2 rounded-lg bg-[#C2410C] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#B45309]"
+          @click="openEditModal"
+        >
+          <Pencil class="h-4 w-4" />
+          Edit Kategori
+        </button>
+      </div>
     </div>
 
     <!-- ═══════════ Kartu Informasi Utama Kategori ═══════════ -->
@@ -468,44 +542,52 @@ onMounted(() => {
       </div>
 
       <!-- Pagination Footer -->
-      <div class="flex flex-col items-center justify-between gap-3 border-t border-gray-100 px-5 py-3 sm:flex-row">
+      <div class="flex flex-col items-center justify-between gap-3 border-t border-gray-100 px-5 py-4 sm:flex-row">
         <p class="text-sm text-gray-500">
-          Menampilkan {{ startIndex }}–{{ endIndex }} dari {{ totalProducts }} produk
+          Menampilkan {{ totalProducts > 0 ? startIndex : 0 }} - {{ endIndex }} dari {{ totalProducts }} produk
         </p>
         <div class="flex items-center gap-1">
+          <!-- Tombol Sebelumnya -->
           <button
             type="button"
             :disabled="currentPage <= 1"
-            class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-            @click="currentPage--"
+            class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+            @click="goToPage(currentPage - 1)"
           >
+            <ChevronLeft class="h-3.5 w-3.5" />
             Sebelumnya
           </button>
+
+          <!-- Nomor Halaman (sliding window) -->
           <template v-for="(page, idx) in visiblePages" :key="'p-' + idx">
-            <!-- Elipsis (tidak bisa diklik) -->
-            <span v-if="page === '...'" class="px-1 text-xs text-gray-400">…</span>
-            <!-- Tombol nomor halaman -->
+            <!-- Elipsis -->
+            <span v-if="page === '...'" class="px-1.5 text-xs text-gray-400">…</span>
+
+            <!-- Tombol Nomor Halaman -->
             <button
               v-else
               type="button"
               :class="[
-                'h-8 w-8 rounded-lg text-xs font-semibold transition-colors',
+                'inline-flex h-8 min-w-[32px] items-center justify-center rounded-lg px-2 text-xs font-semibold transition',
                 page === currentPage
                   ? 'bg-[#C2410C] text-white shadow-sm'
                   : 'text-gray-600 hover:bg-gray-100',
               ]"
-              @click="currentPage = page as number"
+              @click="goToPage(page as number)"
             >
               {{ page }}
             </button>
           </template>
+
+          <!-- Tombol Berikutnya -->
           <button
             type="button"
             :disabled="currentPage >= totalPages"
-            class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-            @click="currentPage++"
+            class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+            @click="goToPage(currentPage + 1)"
           >
-            Selanjutnya
+            Berikutnya
+            <ChevronRight class="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
@@ -516,6 +598,92 @@ onMounted(() => {
       <Info class="h-3.5 w-3.5 shrink-0" />
       <span>* Menampilkan data contoh produk untuk simulasi antarmuka portal kasir & operasional restoran.</span>
     </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- MODAL: Edit Kategori                                                  -->
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <Teleport to="body">
+      <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div class="absolute inset-0" @click="closeEditModal"></div>
+        <div class="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl" @click.stop>
+          <!-- Header modal -->
+          <div class="flex shrink-0 items-start justify-between border-b border-gray-100 p-6">
+            <div class="flex items-center gap-3">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50">
+                <Pencil class="h-5 w-5 text-[#C2410C]" />
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <h3 class="text-lg font-bold text-gray-900">Edit Kategori</h3>
+                  <span class="rounded-full bg-orange-50 px-2.5 py-0.5 text-xs font-semibold text-[#C2410C]">{{ category.code }}</span>
+                </div>
+                <p class="mt-0.5 text-sm text-gray-500">Perbarui informasi kategori produk restoran.</p>
+              </div>
+            </div>
+            <button type="button" class="rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600" @click="closeEditModal">
+              <X class="h-5 w-5" />
+            </button>
+          </div>
+
+          <!-- Form Body (scrollable) -->
+          <form id="editCategoryDetailForm" class="flex-1 space-y-4 overflow-y-auto p-6" @submit.prevent="updateCategory">
+            <!-- Nama Kategori -->
+            <div>
+              <label class="mb-1.5 block text-sm font-semibold text-gray-700">Nama Kategori <span class="text-red-500">*</span></label>
+              <input
+                v-model="formData.name"
+                type="text"
+                required
+                placeholder="Masukkan nama kategori"
+                class="w-full rounded-lg border border-gray-200 bg-slate-50 px-3.5 py-2.5 text-sm text-gray-800 outline-none transition focus:border-[#C2410C] focus:bg-white focus:ring-1 focus:ring-[#C2410C]/30"
+              />
+            </div>
+
+            <!-- Deskripsi -->
+            <div>
+              <label class="mb-1.5 block text-sm font-semibold text-gray-700">Deskripsi Kategori</label>
+              <textarea
+                v-model="formData.description"
+                rows="3"
+                placeholder="Tuliskan deskripsi kategori..."
+                class="w-full resize-none rounded-lg border border-gray-200 bg-slate-50 px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none transition focus:border-[#C2410C] focus:bg-white focus:ring-1 focus:ring-[#C2410C]/30"
+              ></textarea>
+            </div>
+
+            <!-- Status -->
+            <div>
+              <label class="mb-1.5 block text-sm font-semibold text-gray-700">Status Kategori</label>
+              <select
+                v-model="formData.status"
+                class="w-full rounded-lg border border-gray-200 bg-slate-50 px-3.5 py-2.5 text-sm text-gray-800 outline-none transition focus:border-[#C2410C] focus:bg-white focus:ring-1 focus:ring-[#C2410C]/30"
+              >
+                <option value="Aktif">Aktif</option>
+                <option value="Nonaktif">Nonaktif</option>
+              </select>
+            </div>
+          </form>
+
+          <!-- Footer Buttons -->
+          <div class="flex shrink-0 items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+            <button
+              type="button"
+              class="rounded-lg border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+              @click="closeEditModal"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              form="editCategoryDetailForm"
+              class="inline-flex items-center gap-2 rounded-lg bg-[#C2410C] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#B45309]"
+            >
+              <Check class="h-4 w-4" />
+              Simpan Perubahan
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </DashboardLayout>
 </template>
 

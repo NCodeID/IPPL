@@ -7,6 +7,7 @@ import {
   Plus,
   Search,
   X,
+  RotateCcw,
   Eye,
   Pencil,
   Trash2,
@@ -19,6 +20,8 @@ import {
   PlusCircle,
   Tag,
   Package,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-vue-next'
 
 // ─── Router untuk navigasi ke halaman detail ────────────────────────────────
@@ -90,6 +93,9 @@ const categories = ref<Category[]>([
 // ─── Kata kunci pencarian untuk memfilter tabel ─────────────────────────────
 const searchQuery = ref('')
 
+// ─── Filter status kategori yang sedang aktif ('' = semua status) ───────────
+const statusFilter = ref<'' | 'Aktif' | 'Nonaktif'>('')
+
 // ─── Halaman aktif saat ini pada pagination ─────────────────────────────────
 const currentPage = ref(1)
 
@@ -115,11 +121,26 @@ const formData = ref<CategoryForm>({
 // COMPUTED (Data Turunan)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ─── Daftar kategori setelah difilter berdasarkan kata kunci pencarian ──────
+// ─── Daftar kategori setelah difilter berdasarkan kata kunci pencarian & status ──
 const filteredCategories = computed<Category[]>(() => {
-  const q = searchQuery.value.toLowerCase().trim()
-  if (!q) return categories.value
-  return categories.value.filter((c) => c.name.toLowerCase().includes(q))
+  let result = categories.value
+
+  // Filter berdasarkan status kategori jika dipilih
+  if (statusFilter.value) {
+    result = result.filter((c) => c.status === statusFilter.value)
+  }
+
+  // Filter berdasarkan kata kunci pencarian (nama atau deskripsi)
+  const q = searchQuery.value.trim().toLowerCase()
+  if (q) {
+    result = result.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.description.toLowerCase().includes(q),
+    )
+  }
+
+  return result
 })
 
 // ─── Jumlah total halaman berdasarkan hasil filter ──────────────────────────
@@ -180,13 +201,28 @@ const canDelete = computed<boolean>(() =>
 )
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// WATCHER — Reset halaman saat pencarian berubah
+// WATCHER — Reset halaman saat pencarian atau filter status berubah
 // ═══════════════════════════════════════════════════════════════════════════════
 
-// ─── Setiap kali kata kunci pencarian berubah, kembalikan ke halaman 1 ──────
-watch(searchQuery, () => {
+// ─── Mengembalikan nomor halaman pagination ke halaman 1 setiap kali query pencarian
+// atau filter status diubah, mencegah tampilan tabel kosong jika terjebak di halaman sebelumnya.
+watch([searchQuery, statusFilter], () => {
   currentPage.value = 1
 })
+
+// ─── Mereset semua filter pencarian dan status kategori ke kondisi awal ──────
+function resetFilters(): void {
+  searchQuery.value = ''
+  statusFilter.value = ''
+}
+
+// ─── Berpindah ke nomor halaman tertentu ────────────────────────────────────
+function goToPage(page: number | string): void {
+  const pageNum = typeof page === 'string' ? parseInt(page, 10) : page
+  if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages.value) {
+    currentPage.value = pageNum
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // FUNGSI CRUD
@@ -347,29 +383,54 @@ onMounted(() => {
       </button>
     </div>
 
-    <!-- ═══════════ Search + Table Card ═══════════ -->
-    <div class="overflow-hidden rounded-xl border border-gray-100 bg-white">
-      <!-- Search Bar -->
-      <div class="border-b border-gray-100 px-5 py-4">
-        <div class="relative max-w-md">
-          <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+    <!-- ═══════════ Bar Filter & Pencarian ═══════════ -->
+    <div class="mb-6 rounded-xl border border-slate-200 bg-white p-4">
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <!-- Input Pencarian (Sisi Kiri / flex-1) -->
+        <div class="relative flex-1">
+          <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
             v-model="searchQuery"
             type="text"
-            placeholder="Cari nama kategori..."
-            class="w-full rounded-lg border border-gray-200 py-2.5 pl-10 pr-10 text-sm text-gray-700 placeholder-gray-400 outline-none transition-colors focus:border-[#C2410C] focus:ring-1 focus:ring-[#C2410C]/30"
+            placeholder="Cari nama atau deskripsi kategori..."
+            class="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-9 text-sm text-gray-800 placeholder-slate-400 outline-none transition focus:border-[#C2410C] focus:bg-white focus:ring-1 focus:ring-[#C2410C]/30"
           />
           <button
             v-if="searchQuery"
             type="button"
-            class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600"
+            title="Hapus pencarian"
             @click="searchQuery = ''"
           >
             <X class="h-4 w-4" />
           </button>
         </div>
-      </div>
 
+        <!-- Dropdown Status (Sisi Kanan) -->
+        <select
+          v-model="statusFilter"
+          class="h-10 w-full sm:w-48 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-gray-700 outline-none transition focus:border-[#C2410C] focus:bg-white focus:ring-1 focus:ring-[#C2410C]/30 cursor-pointer"
+        >
+          <option value="">Semua Status</option>
+          <option value="Aktif">Aktif</option>
+          <option value="Nonaktif">Nonaktif</option>
+        </select>
+
+        <!-- Tombol Reset Filter -->
+        <button
+          type="button"
+          class="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-800 shrink-0 cursor-pointer"
+          title="Reset semua filter"
+          @click="resetFilters"
+        >
+          <RotateCcw class="h-4 w-4" />
+          Reset Filter
+        </button>
+      </div>
+    </div>
+
+    <!-- ═══════════ Table Card ═══════════ -->
+    <div class="overflow-hidden rounded-xl border border-gray-100 bg-white">
       <!-- Table -->
       <div class="overflow-x-auto">
         <table class="w-full min-w-[650px]">
@@ -424,25 +485,54 @@ onMounted(() => {
       </div>
 
       <!-- Pagination Footer -->
-      <div class="flex flex-col items-center justify-between gap-3 border-t border-gray-100 px-5 py-3 sm:flex-row">
+      <div class="flex flex-col items-center justify-between gap-3 border-t border-gray-100 px-5 py-4 sm:flex-row">
         <p class="text-sm text-gray-500">
           Menampilkan {{ filteredCategories.length > 0 ? startIndex + 1 : 0 }} -
           {{ endIndex }} dari {{ filteredCategories.length }} kategori
         </p>
         <div class="flex items-center gap-1">
-          <button type="button" :disabled="currentPage <= 1" class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40" @click="currentPage--">Sebelumnya</button>
+          <!-- Tombol Sebelumnya -->
+          <button
+            type="button"
+            :disabled="currentPage <= 1"
+            class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+            @click="goToPage(currentPage - 1)"
+          >
+            <ChevronLeft class="h-3.5 w-3.5" />
+            Sebelumnya
+          </button>
+
+          <!-- Nomor Halaman (sliding window) -->
           <template v-for="(page, idx) in visiblePages" :key="'p-' + idx">
-            <!-- Elipsis (tidak bisa diklik) -->
-            <span v-if="page === '...'" class="px-1 text-xs text-gray-400">…</span>
-            <!-- Tombol nomor halaman -->
+            <!-- Elipsis -->
+            <span v-if="page === '...'" class="px-1.5 text-xs text-gray-400">…</span>
+
+            <!-- Tombol Nomor Halaman -->
             <button
               v-else
               type="button"
-              :class="['h-8 w-8 rounded-lg text-xs font-semibold transition-colors', page === currentPage ? 'bg-[#C2410C] text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100']"
-              @click="currentPage = page as number"
-            >{{ page }}</button>
+              :class="[
+                'inline-flex h-8 min-w-[32px] items-center justify-center rounded-lg px-2 text-xs font-semibold transition',
+                page === currentPage
+                  ? 'bg-[#C2410C] text-white shadow-sm'
+                  : 'text-gray-600 hover:bg-gray-100',
+              ]"
+              @click="goToPage(page as number)"
+            >
+              {{ page }}
+            </button>
           </template>
-          <button type="button" :disabled="currentPage >= totalPages" class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40" @click="currentPage++">Berikutnya</button>
+
+          <!-- Tombol Berikutnya -->
+          <button
+            type="button"
+            :disabled="currentPage >= totalPages"
+            class="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+            @click="goToPage(currentPage + 1)"
+          >
+            Berikutnya
+            <ChevronRight class="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
     </div>
@@ -457,76 +547,76 @@ onMounted(() => {
     <!-- MODAL: Tambah Kategori Baru (Desain Figma Gambar 1)                   -->
     <!-- ═══════════════════════════════════════════════════════════════════════ -->
     <Teleport to="body">
-      <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
         <div class="absolute inset-0 bg-black/50" @click="closeAllModals"></div>
-        <div class="relative z-10 w-full max-w-lg rounded-2xl bg-white shadow-xl" @click.stop>
+        <div class="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl" @click.stop>
           <!-- Header dengan ikon brand dan judul -->
-          <div class="flex items-start justify-between px-6 pt-6">
+          <div class="flex shrink-0 items-start justify-between border-b border-gray-100 p-6">
             <div class="flex items-center gap-3">
               <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50">
                 <Tag class="h-5 w-5 text-[#C2410C]" />
               </div>
               <div>
                 <h3 class="text-lg font-bold text-gray-900">Tambah Kategori Baru</h3>
-                <p class="text-sm text-gray-500">Buat pengelompokan menu restoran baru</p>
+                <p class="mt-0.5 text-sm text-gray-500">Buat pengelompokan menu restoran baru</p>
               </div>
             </div>
-            <button type="button" class="mt-1 text-gray-400 hover:text-gray-600" @click="closeAllModals">
+            <button type="button" class="rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600" @click="closeAllModals">
               <X class="h-5 w-5" />
             </button>
           </div>
 
-          <!-- Form Body -->
-          <form @submit.prevent="createCategory" class="px-6 pb-6 pt-5">
-            <div class="space-y-4">
-              <div>
-                <label class="mb-1.5 block text-sm font-medium text-gray-700">Nama Kategori <span class="text-red-500">*</span></label>
-                <input
-                  v-model="formData.name"
-                  type="text"
-                  required
-                  placeholder="Contoh : Makanan Utama"
-                  class="w-full rounded-lg border border-gray-200 bg-slate-50 px-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 outline-none transition-colors focus:border-[#C2410C] focus:bg-white focus:ring-1 focus:ring-[#C2410C]/30"
-                />
-              </div>
-              <div>
-                <label class="mb-1.5 block text-sm font-medium text-gray-700">Status Kategori</label>
-                <select
-                  v-model="formData.status"
-                  class="w-full appearance-none rounded-lg border border-gray-200 bg-slate-50 px-4 py-2.5 text-sm text-gray-700 outline-none transition-colors focus:border-[#C2410C] focus:bg-white focus:ring-1 focus:ring-[#C2410C]/30"
-                >
-                  <option value="Aktif">Aktif (Ditampilkan di POS)</option>
-                  <option value="Nonaktif">Nonaktif</option>
-                </select>
-              </div>
-              <div>
-                <label class="mb-1.5 block text-sm font-medium text-gray-700">Deskripsi</label>
-                <textarea
-                  v-model="formData.description"
-                  rows="3"
-                  placeholder="Contoh : Aneka hidangan pokok dan olahan nasi, ayam, serta daging utama restoran."
-                  class="w-full resize-none rounded-lg border border-gray-200 bg-slate-50 px-4 py-2.5 text-sm text-gray-700 placeholder-gray-400 outline-none transition-colors focus:border-[#C2410C] focus:bg-white focus:ring-1 focus:ring-[#C2410C]/30"
-                ></textarea>
-              </div>
+          <!-- Form Body (scrollable) -->
+          <form id="createCategoryForm" @submit.prevent="createCategory" class="flex-1 space-y-4 overflow-y-auto p-6">
+            <div>
+              <label class="mb-1.5 block text-sm font-semibold text-gray-700">Nama Kategori <span class="text-red-500">*</span></label>
+              <input
+                v-model="formData.name"
+                type="text"
+                required
+                placeholder="Contoh: Makanan Utama"
+                class="w-full rounded-lg border border-gray-200 bg-slate-50 px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none transition focus:border-[#C2410C] focus:bg-white focus:ring-1 focus:ring-[#C2410C]/30"
+              />
             </div>
-
-            <!-- Footer Buttons -->
-            <div class="mt-6 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                class="rounded-lg px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100"
-                @click="closeAllModals"
+            <div>
+              <label class="mb-1.5 block text-sm font-semibold text-gray-700">Status Kategori</label>
+              <select
+                v-model="formData.status"
+                class="w-full rounded-lg border border-gray-200 bg-slate-50 px-3.5 py-2.5 text-sm text-gray-800 outline-none transition focus:border-[#C2410C] focus:bg-white focus:ring-1 focus:ring-[#C2410C]/30"
               >
-                Batal
-              </button>
-              <button
-                type="submit"
-                class="rounded-lg bg-[#C2410C] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#B45309]"
-              >
-                Simpan Kategori
-              </button>
+                <option value="Aktif">Aktif (Ditampilkan di POS)</option>
+                <option value="Nonaktif">Nonaktif</option>
+              </select>
+            </div>
+            <div>
+              <label class="mb-1.5 block text-sm font-semibold text-gray-700">Deskripsi (Opsional)</label>
+              <textarea
+                v-model="formData.description"
+                rows="3"
+                placeholder="Contoh: Aneka hidangan pokok dan olahan nasi, ayam, serta daging utama restoran."
+                class="w-full resize-none rounded-lg border border-gray-200 bg-slate-50 px-3.5 py-2.5 text-sm text-gray-800 placeholder-gray-400 outline-none transition focus:border-[#C2410C] focus:bg-white focus:ring-1 focus:ring-[#C2410C]/30"
+              ></textarea>
             </div>
           </form>
+
+          <!-- Footer Buttons (fixed) -->
+          <div class="flex shrink-0 items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+            <button
+              type="button"
+              class="rounded-lg border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+              @click="closeAllModals"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              form="createCategoryForm"
+              class="inline-flex items-center gap-2 rounded-lg bg-[#C2410C] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#B45309]"
+            >
+              <Check class="h-4 w-4" />
+              Simpan Kategori
+            </button>
+          </div>
         </div>
       </div>
     </Teleport>
@@ -535,74 +625,74 @@ onMounted(() => {
     <!-- MODAL: Edit Kategori (Desain Figma Gambar 3)                          -->
     <!-- ═══════════════════════════════════════════════════════════════════════ -->
     <Teleport to="body">
-      <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div v-if="showEditModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
         <div class="absolute inset-0 bg-black/50" @click="closeAllModals"></div>
-        <div class="relative z-10 w-full max-w-lg rounded-2xl bg-white shadow-xl" @click.stop>
+        <div class="relative z-10 flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl" @click.stop>
           <!-- Header dengan ikon brand dan judul -->
-          <div class="flex items-start justify-between px-6 pt-6">
+          <div class="flex shrink-0 items-start justify-between border-b border-gray-100 p-6">
             <div class="flex items-center gap-3">
               <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-orange-50">
                 <Tag class="h-5 w-5 text-[#C2410C]" />
               </div>
               <div>
                 <h3 class="text-lg font-bold text-gray-900">Edit Kategori</h3>
-                <p class="text-sm text-gray-500">Perbarui informasi kategori produk restoran</p>
+                <p class="mt-0.5 text-sm text-gray-500">Perbarui informasi kategori produk restoran</p>
               </div>
             </div>
-            <button type="button" class="mt-1 text-gray-400 hover:text-gray-600" @click="closeAllModals">
+            <button type="button" class="rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600" @click="closeAllModals">
               <X class="h-5 w-5" />
             </button>
           </div>
 
-          <!-- Form Body (pre-filled) -->
-          <form @submit.prevent="updateCategory" class="px-6 pb-6 pt-5">
-            <div class="space-y-4">
-              <div>
-                <label class="mb-1.5 block text-sm font-medium text-gray-700">Nama Kategori <span class="text-red-500">*</span></label>
-                <input
-                  v-model="formData.name"
-                  type="text"
-                  required
-                  class="w-full rounded-lg border border-gray-200 bg-slate-50 px-4 py-2.5 text-sm text-gray-700 outline-none transition-colors focus:border-[#C2410C] focus:bg-white focus:ring-1 focus:ring-[#C2410C]/30"
-                />
-              </div>
-              <div>
-                <label class="mb-1.5 block text-sm font-medium text-gray-700">Status Kategori</label>
-                <select
-                  v-model="formData.status"
-                  class="w-full appearance-none rounded-lg border border-gray-200 bg-slate-50 px-4 py-2.5 text-sm text-gray-700 outline-none transition-colors focus:border-[#C2410C] focus:bg-white focus:ring-1 focus:ring-[#C2410C]/30"
-                >
-                  <option value="Aktif">Aktif (Ditampilkan di POS)</option>
-                  <option value="Nonaktif">Nonaktif</option>
-                </select>
-              </div>
-              <div>
-                <label class="mb-1.5 block text-sm font-medium text-gray-700">Deskripsi</label>
-                <textarea
-                  v-model="formData.description"
-                  rows="3"
-                  class="w-full resize-none rounded-lg border border-gray-200 bg-slate-50 px-4 py-2.5 text-sm text-gray-700 outline-none transition-colors focus:border-[#C2410C] focus:bg-white focus:ring-1 focus:ring-[#C2410C]/30"
-                ></textarea>
-              </div>
+          <!-- Form Body (pre-filled, scrollable) -->
+          <form id="editCategoryForm" @submit.prevent="updateCategory" class="flex-1 space-y-4 overflow-y-auto p-6">
+            <div>
+              <label class="mb-1.5 block text-sm font-semibold text-gray-700">Nama Kategori <span class="text-red-500">*</span></label>
+              <input
+                v-model="formData.name"
+                type="text"
+                required
+                class="w-full rounded-lg border border-gray-200 bg-slate-50 px-3.5 py-2.5 text-sm text-gray-800 outline-none transition focus:border-[#C2410C] focus:bg-white focus:ring-1 focus:ring-[#C2410C]/30"
+              />
             </div>
-
-            <!-- Footer Buttons -->
-            <div class="mt-6 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                class="rounded-lg px-5 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-100"
-                @click="closeAllModals"
+            <div>
+              <label class="mb-1.5 block text-sm font-semibold text-gray-700">Status Kategori</label>
+              <select
+                v-model="formData.status"
+                class="w-full rounded-lg border border-gray-200 bg-slate-50 px-3.5 py-2.5 text-sm text-gray-800 outline-none transition focus:border-[#C2410C] focus:bg-white focus:ring-1 focus:ring-[#C2410C]/30"
               >
-                Batal
-              </button>
-              <button
-                type="submit"
-                class="rounded-lg bg-[#C2410C] px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#B45309]"
-              >
-                Simpan Perubahan
-              </button>
+                <option value="Aktif">Aktif (Ditampilkan di POS)</option>
+                <option value="Nonaktif">Nonaktif</option>
+              </select>
+            </div>
+            <div>
+              <label class="mb-1.5 block text-sm font-semibold text-gray-700">Deskripsi (Opsional)</label>
+              <textarea
+                v-model="formData.description"
+                rows="3"
+                class="w-full resize-none rounded-lg border border-gray-200 bg-slate-50 px-3.5 py-2.5 text-sm text-gray-800 outline-none transition focus:border-[#C2410C] focus:bg-white focus:ring-1 focus:ring-[#C2410C]/30"
+              ></textarea>
             </div>
           </form>
+
+          <!-- Footer Buttons (fixed) -->
+          <div class="flex shrink-0 items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
+            <button
+              type="button"
+              class="rounded-lg border border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+              @click="closeAllModals"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              form="editCategoryForm"
+              class="inline-flex items-center gap-2 rounded-lg bg-[#C2410C] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#B45309]"
+            >
+              <Check class="h-4 w-4" />
+              Simpan Perubahan
+            </button>
+          </div>
         </div>
       </div>
     </Teleport>
@@ -612,9 +702,9 @@ onMounted(() => {
     <!-- Validasi cerdas: tombol hapus dinonaktifkan jika productCount > 0     -->
     <!-- ═══════════════════════════════════════════════════════════════════════ -->
     <Teleport to="body">
-      <div v-if="showDeleteModal && selectedCategory" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div v-if="showDeleteModal && selectedCategory" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
         <div class="absolute inset-0 bg-black/50" @click="closeAllModals"></div>
-        <div class="relative z-10 w-full max-w-md rounded-2xl bg-white shadow-xl" @click.stop>
+        <div class="relative z-10 max-h-[90vh] w-full max-w-md flex flex-col overflow-hidden rounded-2xl bg-white shadow-xl" @click.stop>
           <!-- Tombol tutup pojok kanan atas -->
           <button
             type="button"

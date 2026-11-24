@@ -27,6 +27,10 @@ const pageNameMap: Record<string, string> = {
 // Digunakan untuk route dengan parameter seperti /admin/categories/:id
 const dynamicPagePatterns: { pattern: RegExp; name: string; parent?: string }[] = [
   { pattern: /^\/admin\/categories\/[^/]+$/, name: 'Detail Kategori', parent: 'Manajemen Kategori' },
+  { pattern: /^\/admin\/tables\/[^/]+$/, name: 'Detail Meja', parent: 'Manajemen Meja' },
+  { pattern: /^\/admin\/products\/[^/]+$/, name: 'Detail Produk', parent: 'Manajemen Produk' },
+  { pattern: /^\/admin\/recipes\/[^/]+$/, name: 'Detail Resep', parent: 'Manajemen Resep' },
+  { pattern: /^\/admin\/users\/[^/]+$/, name: 'Detail Pengguna', parent: 'Manajemen Pengguna' },
 ]
 
 // ─── Nama halaman aktif saat ini, diambil dari peta path ────────────────────
