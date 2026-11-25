@@ -57,8 +57,8 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'cashier' },
     },
     {
-      path: '/cashier/bills',
-      name: 'CashierBills',
+      path: '/cashier/billsm',
+      name: 'CashierBillsm',
       component: () => import('@/views/cashier/BillSummaryView.vue'),
       meta: { requiresAuth: true, role: 'cashier' },
     },
@@ -75,7 +75,7 @@ const router = createRouter({
       meta: { requiresAuth: true, role: 'cashier' },
     },
     {
-      path: '/cashier/payment-success',
+      path: '/cashier/payment/success',
       name: 'CashierPaymentSuccess',
       component: () => import('@/views/cashier/PaymentSuccessView.vue'),
       meta: { requiresAuth: true, role: 'cashier' },

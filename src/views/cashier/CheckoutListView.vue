@@ -159,10 +159,10 @@ const handleProceedPayment = () => {
 
         <!-- Tombol Aksi Utama Bawah: Lanjut Pembayaran -->
         <button 
-        @click="router.push('/cashier/payment')"
+        @click="router.push('/cashier/billsm')"
             class="w-full bg-[#F58220] hover:bg-[#e0751b] active:scale-[0.99] transition-all text-white font-bold py-4 px-6 rounded-2xl shadow-lg shadow-orange-500/20 flex items-center justify-center space-x-2 text-base cursor-pointer"
         >
-            <span>Lanjut pembayaran · {{ formatRupiah(selectedCheckout.total) }}</span>
+            <span>Buka Bill </span>
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
             </svg>

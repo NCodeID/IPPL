@@ -145,7 +145,7 @@ const kembalian = computed(() => {
                 </div>
             </div>
 
-            <button @click="handleConfirmPayment" class="w-full bg-[#F58220] hover:bg-[#e0751b] text-white font-bold py-4 rounded-2xl shadow-lg shadow-orange-500/20 cursor-pointer transition-all">
+            <button @click="router.push('/cashier/paymment-success')" class="w-full bg-[#F58220] hover:bg-[#e0751b] text-white font-bold py-4 rounded-2xl shadow-lg shadow-orange-500/20 cursor-pointer transition-all">
                 Konfirmasi pembayaran
             </button>
             </div>

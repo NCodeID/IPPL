@@ -156,14 +156,13 @@ const handleOpenBill = () => {
             </div>
 
             <!-- Tombol Aksi Utama: Buka Bill Pelanggan -->
-            <button 
-            @click="handleOpenBill"
+            <button @click="router.push('/cashier/payment')"
             class="w-full bg-[#F58220] hover:bg-[#e0751b] active:scale-[0.99] transition-all text-white font-bold py-4 px-6 rounded-2xl shadow-lg shadow-orange-500/20 flex items-center justify-center space-x-2 text-base cursor-pointer"
             >
             <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m-5.5.5h.01m4.99 5h.01M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16l3.5-2 3.5 2 3.5-2 3.5 2z" />
             </svg>
-            <span>Buka Bill Pelanggan</span>
+            <span>Lanjut Pembayaran</span>
             </button>
 
         </div>
