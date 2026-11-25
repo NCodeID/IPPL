@@ -92,6 +92,24 @@ const router = createRouter({
       component: () => import('@/views/accountant/ApprovalListView.vue'),
       meta: { requiresAuth: true, role: 'accountant' },
     },
+    {
+      path: '/accountant/settlements',
+      name: 'AccountantSettlements',
+      component: () => import('@/views/accountant/SettlementListView.vue'),
+      meta: { requiresAuth: true, role: 'accountant' },
+    },
+    {
+      path: '/accountant/sales-report',
+      name: 'AccountantSalesReport',
+      component: () => import('@/views/accountant/SalesReportView.vue'),
+      meta: { requiresAuth: true, role: 'accountant' },
+    },
+    {
+      path: '/accountant/best-selling',
+      name: 'AccountantBestSelling',
+      component: () => import('@/views/accountant/BestSellingView.vue'),
+      meta: { requiresAuth: true, role: 'accountant' },
+    },
   ],
 })
 
