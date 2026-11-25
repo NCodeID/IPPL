@@ -86,6 +86,12 @@ const router = createRouter({
       component: () => import('@/views/accountant/DashboardView.vue'),
       meta: { requiresAuth: true, role: 'accountant' },
     },
+    {
+      path: '/accountant/approvals',
+      name: 'AccountantApprovals',
+      component: () => import('@/views/accountant/ApprovalListView.vue'),
+      meta: { requiresAuth: true, role: 'accountant' },
+    },
   ],
 })
 
